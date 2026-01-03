@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0F0F1A"/>
+      <stop offset="100%" style="stop-color:#1a1a3e"/>
+    </linearGradient>
+    <linearGradient id="orbGrad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6"/>
+      <stop offset="50%" style="stop-color:#A78BFA"/>
+      <stop offset="100%" style="stop-color:#7C3AED"/>
+    </linearGradient>
+    <filter id="glow512" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="20" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="url(#bgGrad512)"/>
+  
+  <!-- Main Orb -->
+  <circle cx="256" cy="256" r="130" fill="url(#orbGrad512)" filter="url(#glow512)"/>
+  
+  <!-- Highlight -->
+  <ellipse cx="215" cy="215" rx="40" ry="25" fill="rgba(255,255,255,0.3)" transform="rotate(-30 215 215)"/>
+  
+  <!-- Smaller orbs -->
+  <circle cx="120" cy="160" r="32" fill="#F59E0B" opacity="0.9"/>
+  <circle cx="392" cy="160" r="32" fill="#EF4444" opacity="0.9"/>
+  <circle cx="120" cy="352" r="32" fill="#10B981" opacity="0.9"/>
+  <circle cx="392" cy="352" r="32" fill="#06B6D4" opacity="0.9"/>
+  
+  <!-- Text -->
+  <text x="256" y="450" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#8B5CF6" text-anchor="middle">ORB MASTERS</text>
+</svg>

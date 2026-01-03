@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>ORB MASTERS</title>
+  
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#8B5CF6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Orb Masters">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+  
+  <!-- SEO -->
+  <meta name="description" content="ORB MASTERS - 4 захватывающие мини-игры: ловля монет, разбивание блоков, пазлы и match-3!">
+  <meta name="keywords" content="game, arcade, puzzle, match3, mobile game, orb masters">
+  
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/animations.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <meta name="robots" content="noindex">
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game" width="360" height="640"></canvas>
+
+    <!-- Глобальный HUD скрыт - каждый уровень имеет свой HUD -->
+    <div id="hud" style="display: none;">
+      <div id="score">Score: 0</div>
+    </div>
+
+    <div id="overlay" aria-hidden="true"></div>
+    <div id="notif" style="display:none"></div>
+  </div>
+
+  <!-- Runtime error overlay: показывает ошибки прямо на странице -->
+  <script>
+    (function(){
+      const notif = document.getElementById('notif');
+      function show(msg){
+        if(!notif) return;
+        notif.style.display = msg ? 'block' : 'none';
+        notif.textContent = msg || '';
+      }
+      window.showRuntimeMessage = show;
+      window.addEventListener('error', e => {
+        show('Ошибка: ' + (e.message || e.error || 'unknown'));
+        console.error(e);
+      });
+      window.addEventListener('unhandledrejection', e => {
+        const m = e.reason && e.reason.message ? e.reason.message : String(e.reason);
+        show('Promise rejection: ' + m);
+        console.error(e);
+      });
+    })();
+  </script>
+
+  <!-- debug console (скрыт по умолчанию, добавьте ?debug=1 в URL для показа) -->
+  <div id="debug" style="display: none; position: fixed; top: 0; left: 0; background: black; color: lime; padding: 10px; max-width: 400px; max-height: 200px; overflow: auto; font-size: 12px; z-index: 9999; font-family: monospace; white-space: pre-wrap;"></div>
+
+  <!-- Core engine and scenes (using ES modules) -->
+  <script src="src/engine.js"></script>
+  <!-- bootstrap with modules -->
+  <script type="module" src="src/main.js"></script>
+  
+  <!-- Register Service Worker for PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+          .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>

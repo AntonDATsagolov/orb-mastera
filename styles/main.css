@@ -1,0 +1,12 @@
+:root{--bg1:#07103a;--bg2:#4b2a7d;--accent:#7EE7C8;--muted:#c7cff3;--text:#f6f8ff}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--text);-webkit-font-smoothing:antialiased}
+#game-container{max-width:420px;margin:18px auto;padding:0;position:relative}
+canvas{width:100%;height:auto;display:block;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.04));border-radius:14px;box-shadow:0 16px 40px rgba(2,6,23,0.6)}
+#hud{position:absolute;left:10px;right:10px;top:10px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+#hud>div{background:rgba(255,255,255,0.04);padding:6px 10px;border-radius:10px;font-weight:700;pointer-events:auto}
+#powerSlot{width:42px;text-align:center}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);color:#042;display:none}
+#overlay #finalScore,#overlay #bestScore{background:linear-gradient(180deg,#fff,#e6fff6);padding:12px;border-radius:8px;margin:8px 0}
+#restart{padding:10px 16px;border-radius:10px;border:0;cursor:pointer;background:linear-gradient(90deg,var(--accent),#4ad9b3)}
+#notif{position:absolute;left:50%;transform:translateX(-50%);top:36%;display:none;background:#fff;padding:8px 14px;border-radius:12px;color:#042;font-weight:800;box-shadow:0 12px 30px rgba(0,0,0,0.35);z-index:9999}
