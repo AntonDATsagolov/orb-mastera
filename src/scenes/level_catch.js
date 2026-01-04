@@ -7,6 +7,8 @@ import { showSettingsModal } from '../game/SettingsModal.js';
 import { showGameResult } from '../ui/GameResultScreen.js';
 import difficultyManager from '../core/DifficultyManager.js';
 import i18n, { t } from '../i18n/LanguageManager.js';
+import onboardingManager from '../core/OnboardingManager.js';
+import levelSystem, { GOAL_TYPES } from '../core/LevelSystem.js';
 
 // Типы падающих объектов
 const ITEM_TYPES = {
@@ -108,6 +110,20 @@ function LevelCatch(engine, opts = {}) {
   let ctx = engine.ctx;
   const container = document.getElementById('game-container');
 
+  // === СИСТЕМА УРОВНЕЙ ===
+  const levelId = localStorage.getItem('orb-masters-current-level');
+  const levelConfig = levelId ? levelSystem.getLevel('catch', levelId) : null;
+  const isLevelMode = !!levelConfig;
+  
+  // Если играем уровень, используем его настройки
+  let levelTimeLimit = levelConfig?.timeLimit || null;
+  let levelGoal = levelConfig?.goal || null;
+  let levelDifficulty = levelConfig?.difficulty || null;
+  let levelTimer = levelTimeLimit ? levelTimeLimit * 1000 : 0;
+  let itemsCollected = 0; // Счётчик собранных предметов
+  let specialItemsCollected = 0; // Особые предметы (gold, diamond)
+  let noDamageTimer = 0; // Для цели NO_DAMAGE
+
   // Запуск музыки уровня
   AudioManager.playTrack('level1');
 
@@ -115,13 +131,29 @@ function LevelCatch(engine, opts = {}) {
   let hudOverlay = document.createElement('div');
   hudOverlay.id = 'catch-hud';
   hudOverlay.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; pointer-events: none; z-index: 100; padding: 10px;';
+  
+  // Добавляем цель уровня в HUD если это режим уровней
+  const goalHtml = isLevelMode ? `
+    <div id="catch-goal" style="color: #4CAF50; font-size: 14px; margin-top: 4px; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 8px;">
+      <span id="goal-icon">🎯</span> <span id="goal-progress">0</span> / <span id="goal-target">${levelGoal?.target || 0}</span>
+    </div>
+  ` : '';
+  
+  const timerHtml = isLevelMode && levelTimeLimit ? `
+    <div id="catch-timer" style="color: #FFF; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
+      ⏱️ ${levelTimeLimit}s
+    </div>
+  ` : '';
+  
   hudOverlay.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
       <div style="display: flex; flex-direction: column; gap: 4px;">
         <div id="catch-score" style="color: #FFD700; font-size: 28px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">0</div>
         <div id="catch-combo" style="color: #FF5722; font-size: 18px; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); opacity: 0;">COMBO x1</div>
+        ${goalHtml}
       </div>
       <div style="display: flex; flex-direction: column; align-items: center; flex: 1; gap: 4px;">
+        ${timerHtml}
         <div id="catch-lives" style="color: #FF4444; font-size: 24px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">❤❤❤</div>
         <div id="catch-power" style="color: #FFF; font-size: 20px; background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; opacity: 0;"></div>
       </div>
@@ -138,13 +170,21 @@ function LevelCatch(engine, opts = {}) {
   const livesEl = hudOverlay.querySelector('#catch-lives');
   const powerEl = hudOverlay.querySelector('#catch-power');
   const messageEl = hudOverlay.querySelector('#catch-message');
+  const goalProgressEl = hudOverlay.querySelector('#goal-progress');
+  const goalEl = hudOverlay.querySelector('#catch-goal');
+  const timerEl = hudOverlay.querySelector('#catch-timer');
+
+  // === ОНБОРДИНГ: Модификаторы для новых игроков ===
+  const newPlayerMod = onboardingManager.getNewPlayerModifier();
+  let gameStarted = false; // Флаг для отложенного старта (после интро)
 
   // === Состояние игры ===
   let running = true;
   let alive = true;
   let score = 0;
   let best = parseInt(localStorage.getItem('mbg-best') || '0', 10) || 0;
-  let lives = 3;
+  let lives = newPlayerMod.bombChance === 0 ? 5 : 3; // Больше жизней для новичков
+  let initialLives = lives; // Для расчёта isPerfect
   
   // Комбо система
   let combo = 0;
@@ -152,17 +192,23 @@ function LevelCatch(engine, opts = {}) {
   let comboTimer = 0;
   const COMBO_TIMEOUT = 2000; // 2 секунды на продолжение комбо
   
-  // Сложность с учётом адаптивной системы
+  // Сложность с учётом адаптивной системы и онбординга
   const difficultyMod = difficultyManager.getModifier('cashCatcher');
-  let difficulty = 1 * difficultyMod; // Начальная сложность зависит от истории
+  // Используем сложность уровня если есть
+  const baseDifficulty = levelDifficulty ? levelDifficulty.speed : 1;
+  let difficulty = baseDifficulty * difficultyMod * newPlayerMod.speedMultiplier;
   let totalCaught = 0;
   
-  // Корзина
+  // Шанс бомб из уровня или дефолтный
+  let bombChance = levelDifficulty?.bombChance ?? newPlayerMod.bombChance;
+  
+  // Корзина (шире для новичков)
+  const basketWidthMod = newPlayerMod.speedMultiplier < 1 ? 1.3 : 1;
   const basket = {
     x: W / 2,
     y: H - 60,
-    w: Math.max(80, Math.min(140, W * 0.25)),
-    baseW: Math.max(80, Math.min(140, W * 0.25)),
+    w: Math.max(80, Math.min(140, W * 0.25)) * basketWidthMod,
+    baseW: Math.max(80, Math.min(140, W * 0.25)) * basketWidthMod,
     h: 30,
     targetX: W / 2,
     ease: 0.15
@@ -172,10 +218,13 @@ function LevelCatch(engine, opts = {}) {
   const items = [];
   const effects = [];
   let lastSpawn = performance.now();
-  const spawnBase = 800;
+  const spawnBase = 800 / newPlayerMod.spawnRateMultiplier; // Меньше объектов для новичков
 
   // Активные бонусы
   let activePowers = {}; // { type: { expires, ... } }
+
+  // Таймер для показа подсказок
+  let hintTimer = 0;
 
   // === Функции ===
   function rand(a, b) { return a + Math.random() * (b - a); }
@@ -259,10 +308,11 @@ function LevelCatch(engine, opts = {}) {
     const now = performance.now();
     const r = Math.random();
     
-    // Вероятности с учётом сложности
-    const bombProb = Math.min(0.15, 0.02 + difficulty * 0.015);
-    const powerProb = 0.08;
-    const goldProb = 0.03;
+    // Вероятности с учётом сложности и онбординга для новичков
+    const baseBombProb = Math.min(0.15, 0.02 + difficulty * 0.015);
+    const bombProb = baseBombProb * (newPlayerMod.bombChance / 0.15); // Меньше бомб для новичков
+    const powerProb = newPlayerMod.bombChance === 0 ? 0.15 : 0.08; // Больше бонусов для новичков
+    const goldProb = newPlayerMod.bombChance === 0 ? 0.06 : 0.03; // Больше золота для новичков
     const diamondProb = 0.008;
     const billProb = 0.25;
     
@@ -361,6 +411,12 @@ function LevelCatch(engine, opts = {}) {
     comboTimer = now;
     totalCaught++;
     maxCombo = Math.max(maxCombo, combo);
+    itemsCollected++; // Для целей уровня
+    
+    // Особые предметы для COLLECT_SPECIAL
+    if (item.type === ITEM_TYPES.GOLD || item.type === ITEM_TYPES.DIAMOND) {
+      specialItemsCollected++;
+    }
     
     // Применяем множители
     let multiplier = getComboMultiplier();
@@ -392,6 +448,16 @@ function LevelCatch(engine, opts = {}) {
     // Обновляем UI
     scoreEl.textContent = score;
     updateComboDisplay();
+    
+    // Обновляем прогресс цели уровня
+    updateGoalProgress();
+    
+    // Проверяем достижение цели
+    if (isLevelMode && checkGoalComplete()) {
+      doLevelComplete();
+      items.splice(index, 1);
+      return;
+    }
     
     items.splice(index, 1);
   }
@@ -614,11 +680,13 @@ function LevelCatch(engine, opts = {}) {
 
   function restartGame() {
     score = 0;
-    lives = 3;
+    lives = initialLives;
     combo = 0;
     maxCombo = 0;
-    difficulty = 1;
+    difficulty = baseDifficulty * difficultyMod * newPlayerMod.speedMultiplier;
     totalCaught = 0;
+    itemsCollected = 0;
+    specialItemsCollected = 0;
     items.length = 0;
     effects.length = 0;
     activePowers = {};
@@ -631,6 +699,18 @@ function LevelCatch(engine, opts = {}) {
     updateLivesDisplay();
     updateComboDisplay();
     updatePowerDisplay();
+    
+    // Сброс UI уровня
+    if (goalProgressEl) goalProgressEl.textContent = '0';
+    if (goalEl) {
+      goalEl.style.color = '#4CAF50';
+      goalEl.style.background = 'rgba(0,0,0,0.3)';
+    }
+    if (timerEl) {
+      timerEl.textContent = `⏱️ ${levelTimeLimit}s`;
+      timerEl.style.color = '#FFF';
+    }
+    
     pauseOverlay.style.display = 'none';
     if (gameOverOverlay) gameOverOverlay.style.display = 'none';
   }
@@ -657,12 +737,120 @@ function LevelCatch(engine, opts = {}) {
     gameOverOverlay.querySelector('#catch-to-menu').onclick = () => { SoundEffects.playClick(); engine.goTo('menu'); };
   }
 
+  // === Функции для системы уровней ===
+  function updateGoalProgress() {
+    if (!isLevelMode || !goalProgressEl) return;
+    
+    const progress = getGoalProgress();
+    goalProgressEl.textContent = progress;
+    
+    // Подсветка при приближении к цели
+    const target = levelGoal.target;
+    const percent = progress / target;
+    if (percent >= 1) {
+      goalEl.style.color = '#4CAF50';
+      goalEl.style.background = 'rgba(76, 175, 80, 0.3)';
+    } else if (percent >= 0.7) {
+      goalEl.style.color = '#FFC107';
+    }
+  }
+
+  function getGoalProgress() {
+    if (!levelGoal) return 0;
+    
+    switch (levelGoal.type) {
+      case GOAL_TYPES.SCORE:
+        return score;
+      case GOAL_TYPES.COLLECT:
+        return itemsCollected;
+      case GOAL_TYPES.COMBO:
+        return maxCombo;
+      case GOAL_TYPES.COLLECT_SPECIAL:
+        return specialItemsCollected;
+      case GOAL_TYPES.SURVIVE:
+        return Math.floor((Date.now() - gameStartTime) / 1000);
+      case GOAL_TYPES.NO_DAMAGE:
+        return lives === initialLives ? Math.floor((Date.now() - gameStartTime) / 1000) : 0;
+      default:
+        return 0;
+    }
+  }
+
+  function checkGoalComplete() {
+    if (!levelGoal) return false;
+    
+    const progress = getGoalProgress();
+    return progress >= levelGoal.target;
+  }
+
+  function calculateStars() {
+    if (!levelConfig || !levelConfig.stars) return 1;
+    
+    const progress = getGoalProgress();
+    const { one, two, three } = levelConfig.stars;
+    
+    if (progress >= three) return 3;
+    if (progress >= two) return 2;
+    if (progress >= one) return 1;
+    return 0;
+  }
+
+  function doLevelComplete() {
+    alive = false;
+    running = false;
+    
+    const stars = calculateStars();
+    const duration = Math.floor((Date.now() - gameStartTime) / 1000);
+    
+    // Сохраняем прогресс уровня
+    levelSystem.completeLevel('catch', levelId, stars);
+    
+    // Записываем игру в онбординг
+    onboardingManager.recordGamePlayed('catch');
+    
+    SoundEffects.playBonus();
+    
+    // Показываем экран результатов с информацией об уровне
+    showGameResult({
+      mode: 'catch',
+      score: score,
+      combo: maxCombo,
+      stage: levelConfig.stage,
+      duration: duration,
+      isPerfect: lives === initialLives,
+      isWin: true,
+      isLevelMode: true,
+      levelId: levelId,
+      stars: stars,
+      levelReward: levelConfig.rewards?.orbs || 10,
+      engine: engine,
+      onRetry: () => {
+        restartGame();
+      },
+      onHome: () => {
+        engine.goTo('menu');
+      },
+      onNextLevel: () => {
+        const nextLevel = levelSystem.getNextLevel('catch');
+        if (nextLevel) {
+          localStorage.setItem('orb-masters-current-level', nextLevel.id);
+          restartGame();
+        } else {
+          engine.goTo('menu');
+        }
+      }
+    });
+  }
+
   function doGameOver() {
     alive = false;
     running = false;
     
     best = Math.max(best, score);
     localStorage.setItem('mbg-best', String(best));
+    
+    // Записываем игру в онбординг
+    onboardingManager.recordGamePlayed('catch');
     
     // Получаем текущий stage из localStorage (установлен MainMenu)
     const currentStage = parseInt(localStorage.getItem('orb-masters-current-stage')) || 1;
@@ -819,17 +1007,17 @@ function LevelCatch(engine, opts = {}) {
       W = w;
       H = h;
       basket.y = H - 60;
-      basket.baseW = Math.max(80, Math.min(140, W * 0.25));
+      basket.baseW = Math.max(80, Math.min(140, W * 0.25)) * basketWidthMod;
       if (!hasPower('wide')) basket.w = basket.baseW;
       pauseBtnRect.x = W - 56;
     },
 
     init() {
       score = 0;
-      lives = 3;
+      lives = newPlayerMod.bombChance === 0 ? 5 : 3;
       combo = 0;
       maxCombo = 0;
-      difficulty = 1;
+      difficulty = 1 * difficultyMod * newPlayerMod.speedMultiplier;
       totalCaught = 0;
       items.length = 0;
       effects.length = 0;
@@ -837,11 +1025,31 @@ function LevelCatch(engine, opts = {}) {
       lastSpawn = performance.now();
       running = true;
       alive = true;
+      gameStarted = false;
+      hintTimer = 0;
       
       scoreEl.textContent = '0';
       updateLivesDisplay();
       updateComboDisplay();
       updatePowerDisplay();
+
+      // Показываем интро для новичков
+      if (onboardingManager.shouldShowModeIntro('catch')) {
+        running = false; // Пауза до закрытия интро
+        onboardingManager.showModeIntro('catch', () => {
+          running = true;
+          gameStarted = true;
+          lastSpawn = performance.now();
+          // Показываем первую подсказку через секунду
+          if (newPlayerMod.showHints) {
+            setTimeout(() => {
+              onboardingManager.showGameHint('catch-move', 'bottom', 4000);
+            }, 1000);
+          }
+        });
+      } else {
+        gameStarted = true;
+      }
     },
 
     update(dt) {
@@ -849,11 +1057,54 @@ function LevelCatch(engine, opts = {}) {
       
       const now = performance.now();
       
+      // === ОБНОВЛЕНИЕ ТАЙМЕРА УРОВНЯ ===
+      if (isLevelMode && levelTimeLimit && timerEl) {
+        const elapsed = (Date.now() - gameStartTime) / 1000;
+        const remaining = Math.max(0, levelTimeLimit - elapsed);
+        timerEl.textContent = `⏱️ ${Math.ceil(remaining)}s`;
+        
+        // Подсветка при малом времени
+        if (remaining <= 10) {
+          timerEl.style.color = '#FF4444';
+        } else if (remaining <= 30) {
+          timerEl.style.color = '#FFC107';
+        }
+        
+        // Время вышло
+        if (remaining <= 0) {
+          // Проверяем достигнута ли цель
+          if (checkGoalComplete()) {
+            doLevelComplete();
+          } else {
+            doGameOver();
+          }
+          return;
+        }
+        
+        // Для цели SURVIVE — обновляем прогресс
+        if (levelGoal?.type === GOAL_TYPES.SURVIVE) {
+          updateGoalProgress();
+          if (checkGoalComplete()) {
+            doLevelComplete();
+            return;
+          }
+        }
+      }
+      
       // Спавн
       const spawnInterval = Math.max(300, spawnBase - difficulty * 50);
       if (now - lastSpawn > spawnInterval) {
         spawn();
         lastSpawn = now;
+      }
+      
+      // Подсказки для новичков
+      if (newPlayerMod.showHints && gameStarted) {
+        hintTimer += dt;
+        // Показать подсказку о комбо после первых поймананных предметов
+        if (combo >= 5 && !onboardingManager.wasHintShown('catch-combo')) {
+          onboardingManager.showGameHint('catch-combo', 'top', 2500);
+        }
       }
       
       // Проверка таймаута комбо

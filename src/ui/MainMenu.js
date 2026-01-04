@@ -9,6 +9,8 @@ import { COLORS, FONTS, FONT_SIZES, UI, ANIMATIONS, GAME_MODES, STAGES, applySty
 import { AudioManager } from '../game/AudioManager.js';
 import { SoundEffects } from '../game/SoundEffects.js';
 import i18n, { t } from '../i18n/LanguageManager.js';
+import { showTutorial, shouldShowTutorial } from './Tutorial.js';
+import { showLevelSelect } from './LevelSelectScreen.js';
 
 class MainMenu {
   constructor(engine) {
@@ -56,6 +58,11 @@ class MainMenu {
     this.createBottomBar();
 
     document.body.appendChild(this.container);
+
+    // Показываем туториал для новых игроков
+    if (shouldShowTutorial()) {
+      setTimeout(() => showTutorial(), 500);
+    }
   }
 
   createHeader() {
@@ -428,10 +435,16 @@ class MainMenu {
 
   selectMode(mode) {
     this.selectedMode = mode;
-    this.showStageSelect(mode);
+    // Показываем экран выбора уровней для этого режима
+    this.destroy();
+    showLevelSelect(mode.id, this.engine, () => {
+      // Callback при возврате — показываем меню снова
+      this.create();
+    });
   }
 
-  showStageSelect(mode) {
+  showQuickPlay(mode) {
+    // Быстрый старт без выбора уровня (бесконечный режим)
     // Оверлей
     const overlay = document.createElement('div');
     applyStyles(overlay, {
@@ -633,6 +646,7 @@ class MainMenu {
     });
 
     const buttons = [
+      { icon: '❓', labelKey: 'bottomBar.howToPlay', action: () => this.showTutorial() },
       { icon: '📅', labelKey: 'bottomBar.daily', action: () => this.showDailyChallenges() },
       { icon: '🏆', labelKey: 'bottomBar.leaderboard', action: () => this.showLeaderboard() },
       { icon: '🎁', labelKey: 'bottomBar.shop', action: () => this.showShop() },
@@ -713,6 +727,10 @@ class MainMenu {
     import('../game/SettingsModal.js').then(module => {
       module.showSettingsModal();
     });
+  }
+
+  showTutorial() {
+    showTutorial();
   }
 
   refresh() {
