@@ -62,10 +62,10 @@ const XP_TABLE = [
 // Разблокировки по уровням
 const UNLOCKS = {
   1: ['mode_catch', 'mode_bricks_stage1'],
-  3: ['mode_puzzle'],
+  3: [],
   5: ['mode_bricks_stage2'],
   7: ['daily_challenges'],
-  10: ['mode_zuma', 'challenge_arena'],
+  10: ['challenge_arena'],
   15: ['custom_skins'],
   20: ['leaderboards'],
   25: ['weekly_challenges'],
@@ -99,16 +99,16 @@ class PlayerProfile {
       id: this.generateId(),
       name: 'Player',
       createdAt: new Date().toISOString(),
-      
+
       // Прогрессия
       level: 1,
       xp: 0,
       totalXp: 0,
-      
+
       // Валюта
       orbs: 100, // Стартовый бонус
       totalOrbsEarned: 100,
-      
+
       // Mastery по режимам
       mastery: {
         catch: { level: 1, points: 0 },
@@ -116,10 +116,10 @@ class PlayerProfile {
         puzzle: { level: 1, points: 0 },
         zuma: { level: 1, points: 0 },
       },
-      
+
       // Разблокировки
       unlocks: ['mode_catch', 'mode_bricks_stage1'],
-      
+
       // Статистика
       stats: {
         totalGames: 0,
@@ -139,7 +139,7 @@ class PlayerProfile {
           zuma: 0,
         },
       },
-      
+
       // Daily
       daily: {
         lastLogin: null,
@@ -147,7 +147,7 @@ class PlayerProfile {
         todayGames: 0,
         lastGameDate: null,
       },
-      
+
       // Настройки
       settings: {
         soundEnabled: true,
@@ -155,7 +155,7 @@ class PlayerProfile {
         vibration: true,
         language: 'ru',
       },
-      
+
       // Версия данных (для миграций)
       version: 1,
     };
@@ -171,14 +171,32 @@ class PlayerProfile {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Проверяем дейлик
-        this.checkDailyLogin(parsed);
-        return parsed;
+        const defaults = this.createDefault();
+        const data = {
+          ...defaults,
+          ...parsed,
+          stats: { ...defaults.stats, ...(parsed.stats || {}) },
+          daily: { ...defaults.daily, ...(parsed.daily || {}) },
+          settings: { ...defaults.settings, ...(parsed.settings || {}) },
+          unlocks: Array.isArray(parsed.unlocks) ? parsed.unlocks : defaults.unlocks,
+        };
+        data.stats.gamesPerMode = { ...defaults.stats.gamesPerMode, ...(parsed.stats?.gamesPerMode || {}) };
+        data.stats.bestScorePerMode = { ...defaults.stats.bestScorePerMode, ...(parsed.stats?.bestScorePerMode || {}) };
+        data.mastery = { ...defaults.mastery, ...(parsed.mastery || {}) };
+        const previousLogin = data.daily.lastLogin;
+        this.checkDailyLogin(data);
+        this.data = data;
+        if (previousLogin !== data.daily.lastLogin || data.version !== defaults.version || JSON.stringify(parsed) !== JSON.stringify(data)) this.save();
+        return data;
       }
     } catch (e) {
       console.error('Error loading profile:', e);
     }
-    return this.createDefault();
+    const freshProfile = this.createDefault();
+    this.checkDailyLogin(freshProfile);
+    this.data = freshProfile;
+    this.save();
+    return freshProfile;
   }
 
   // Сохранить профиль
@@ -193,12 +211,12 @@ class PlayerProfile {
   // Проверить ежедневный вход
   checkDailyLogin(data) {
     const today = new Date().toDateString();
-    const lastLogin = data.daily.lastLogin;
-    
+    const lastLogin = data.daily.lastLogin || null;
+
     if (lastLogin !== today) {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      
+
       if (lastLogin === yesterday.toDateString()) {
         // Продолжаем streak
         data.daily.streak++;
@@ -208,14 +226,14 @@ class PlayerProfile {
       } else {
         data.daily.streak = 1;
       }
-      
+
       data.daily.lastLogin = today;
       data.daily.todayGames = 0;
     }
   }
 
   // === GETTERS ===
-  
+
   get level() { return this.data.level; }
   get xp() { return this.data.xp; }
   get orbs() { return this.data.orbs; }
@@ -251,33 +269,33 @@ class PlayerProfile {
   // Добавить XP
   addXp(amount) {
     if (amount <= 0) return { leveledUp: false, newLevel: this.data.level };
-    
+
     this.data.xp += amount;
     this.data.totalXp += amount;
-    
+
     let leveledUp = false;
     let orbsEarned = 0;
     const startLevel = this.data.level;
-    
+
     // Проверяем Level Up
     while (this.data.level < XP_TABLE.length && this.data.xp >= XP_TABLE[this.data.level]) {
       this.data.level++;
       leveledUp = true;
-      
+
       // Награда за Level Up
       const reward = LEVEL_UP_REWARDS[this.data.level] || LEVEL_UP_REWARDS.default;
       orbsEarned += reward;
       this.data.orbs += reward;
       this.data.totalOrbsEarned += reward;
-      
+
       // Разблокировки
       if (UNLOCKS[this.data.level]) {
         this.data.unlocks.push(...UNLOCKS[this.data.level]);
       }
     }
-    
+
     this.save();
-    
+
     return {
       leveledUp,
       oldLevel: startLevel,
@@ -311,18 +329,18 @@ class PlayerProfile {
   // Добавить Mastery Points для режима
   addMasteryPoints(mode, points) {
     if (!this.data.mastery[mode]) return null;
-    
+
     this.data.mastery[mode].points += points;
-    
+
     // Проверяем Level Up Mastery (каждые 100 очков)
     const masteryLevelThreshold = this.data.mastery[mode].level * 100;
     let leveledUp = false;
-    
+
     while (this.data.mastery[mode].points >= masteryLevelThreshold + (this.data.mastery[mode].level - 1) * 50) {
       this.data.mastery[mode].level++;
       leveledUp = true;
     }
-    
+
     this.save();
     return { leveledUp, newLevel: this.data.mastery[mode].level };
   }
@@ -332,24 +350,24 @@ class PlayerProfile {
     this.data.stats.totalGames++;
     this.data.stats.totalScore += score;
     this.data.stats.playTime += duration;
-    
+
     if (combo > this.data.stats.bestCombo) {
       this.data.stats.bestCombo = combo;
     }
-    
+
     if (this.data.stats.gamesPerMode[mode] !== undefined) {
       this.data.stats.gamesPerMode[mode]++;
     }
-    
+
     if (this.data.stats.bestScorePerMode[mode] !== undefined) {
       if (score > this.data.stats.bestScorePerMode[mode]) {
         this.data.stats.bestScorePerMode[mode] = score;
       }
     }
-    
+
     this.data.daily.todayGames++;
     this.data.daily.lastGameDate = new Date().toISOString();
-    
+
     this.save();
   }
 
@@ -367,7 +385,7 @@ class PlayerProfile {
   getMasteryBonuses(mode) {
     const level = this.getMasteryLevel(mode);
     const bonuses = {};
-    
+
     // Разные бонусы для разных режимов
     switch (mode) {
       case 'catch':
@@ -379,7 +397,7 @@ class PlayerProfile {
         if (level >= 30) bonuses.extraLives = 2;
         if (level >= 50) bonuses.doubleOrbs = true;
         break;
-        
+
       case 'bricks':
         if (level >= 5) bonuses.extraBalls = 1;
         if (level >= 10) bonuses.damageBonus = 0.05;
@@ -389,7 +407,7 @@ class PlayerProfile {
         if (level >= 30) bonuses.extraBalls = 3;
         if (level >= 50) bonuses.fireBalls = true;
         break;
-        
+
       case 'puzzle':
         if (level >= 5) bonuses.previewNext = true;
         if (level >= 10) bonuses.specialChance = 0.05;
@@ -399,7 +417,7 @@ class PlayerProfile {
         if (level >= 30) bonuses.showOptimal = true;
         if (level >= 50) bonuses.rarePieces = true;
         break;
-        
+
       case 'zuma':
         if (level >= 10) bonuses.slowStart = 3;
         if (level >= 20) bonuses.extraBalls = 2;
@@ -408,7 +426,7 @@ class PlayerProfile {
         if (level >= 50) bonuses.plasmaBalls = true;
         break;
     }
-    
+
     return bonuses;
   }
 

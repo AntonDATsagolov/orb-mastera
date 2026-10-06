@@ -43,33 +43,33 @@ class OnboardingManager {
   }
 
   getNewPlayerModifier() {
-    // Модификаторы для упрощения игры новым игрокам
+    // Подсказки помогают освоиться, но не отключают базовый вызов игры.
     const games = this.state.gamesPlayed;
     
     if (games === 0) {
-      // Первая игра — очень легко
+      // Первая игра — лишь небольшая страховка.
       return {
-        speedMultiplier: 0.5,      // Половина скорости
-        spawnRateMultiplier: 0.6, // Меньше объектов
-        bombChance: 0,             // Без бомб
+        speedMultiplier: 0.9,
+        spawnRateMultiplier: 0.9,
+        bombChance: 0.08,
         showHints: true,
         hintDelay: 0,
       };
     } else if (games < 3) {
-      // 2-3 игра — легко
+      // 2-3 игра — почти стандартный темп.
       return {
-        speedMultiplier: 0.7,
-        spawnRateMultiplier: 0.8,
-        bombChance: 0.05,
+        speedMultiplier: 0.96,
+        spawnRateMultiplier: 0.96,
+        bombChance: 0.12,
         showHints: true,
         hintDelay: 3000,
       };
     } else if (games < 5) {
-      // 4-5 игра — почти нормально
+      // 4-5 игра — стандартная сложность с короткими подсказками.
       return {
-        speedMultiplier: 0.85,
-        spawnRateMultiplier: 0.9,
-        bombChance: 0.1,
+        speedMultiplier: 1.0,
+        spawnRateMultiplier: 1.0,
+        bombChance: 0.14,
         showHints: true,
         hintDelay: 5000,
       };

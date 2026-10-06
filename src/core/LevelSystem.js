@@ -28,45 +28,45 @@ export const STAGE_CONFIG = {
 // Генерация уровней для режима Cash Catcher
 function generateCatchLevels() {
   const levels = {};
-  
-  // Stage 1: Rookie (5 уровней) — Очень легко, обучение
+
+  // Stage 1: обучение механикам без завышенной страховки.
   levels['1-1'] = {
     stage: 1, sublevel: 1,
-    goal: { type: GOAL_TYPES.SCORE, target: 300 },
-    timeLimit: 30,
-    difficulty: { speed: 0.6, bombChance: 0, spawnRate: 0.7 },
-    stars: { one: 300, two: 400, three: 500 },
+    goal: { type: GOAL_TYPES.SCORE, target: 450 },
+    timeLimit: 35,
+    difficulty: { speed: 0.8, bombChance: 0.04, spawnRate: 0.9 },
+    stars: { one: 450, two: 575, three: 700 },
     rewards: { orbs: 5 },
   };
   levels['1-2'] = {
     stage: 1, sublevel: 2,
-    goal: { type: GOAL_TYPES.COLLECT, target: 15, item: 'coin' },
-    timeLimit: 35,
-    difficulty: { speed: 0.65, bombChance: 0, spawnRate: 0.75 },
-    stars: { one: 15, two: 18, three: 22 },
+    goal: { type: GOAL_TYPES.COLLECT, target: 22, item: 'coin' },
+    timeLimit: 40,
+    difficulty: { speed: 0.85, bombChance: 0.05, spawnRate: 0.95 },
+    stars: { one: 22, two: 27, three: 32 },
     rewards: { orbs: 6 },
   };
   levels['1-3'] = {
     stage: 1, sublevel: 3,
-    goal: { type: GOAL_TYPES.SCORE, target: 500 },
-    timeLimit: 40,
-    difficulty: { speed: 0.7, bombChance: 0.02, spawnRate: 0.8 },
-    stars: { one: 500, two: 650, three: 800 },
+    goal: { type: GOAL_TYPES.SCORE, target: 650 },
+    timeLimit: 42,
+    difficulty: { speed: 0.9, bombChance: 0.06, spawnRate: 1.0 },
+    stars: { one: 650, two: 800, three: 950 },
     rewards: { orbs: 7 },
   };
   levels['1-4'] = {
     stage: 1, sublevel: 4,
-    goal: { type: GOAL_TYPES.COMBO, target: 8 },
+    goal: { type: GOAL_TYPES.COMBO, target: 10 },
     timeLimit: 45,
-    difficulty: { speed: 0.7, bombChance: 0.03, spawnRate: 0.85 },
-    stars: { one: 8, two: 12, three: 15 },
+    difficulty: { speed: 0.9, bombChance: 0.07, spawnRate: 1.0 },
+    stars: { one: 10, two: 13, three: 16 },
     rewards: { orbs: 8 },
   };
   levels['1-5'] = {
     stage: 1, sublevel: 5,
     goal: { type: GOAL_TYPES.SURVIVE, target: 60 },
     timeLimit: 60,
-    difficulty: { speed: 0.75, bombChance: 0.05, spawnRate: 0.9 },
+    difficulty: { speed: 0.95, bombChance: 0.08, spawnRate: 1.0 },
     stars: { one: 60, two: 800, three: 1200 }, // время + очки для 2-3 звёзд
     rewards: { orbs: 15, unlocks: 'stage2' },
     isBoss: true,
@@ -138,10 +138,10 @@ function generateCatchLevels() {
       stage: 3, sublevel: i,
       goal: getGoalForLevel(3, i),
       timeLimit: 40 + i * 5,
-      difficulty: { 
-        speed: 1.0 + i * 0.05, 
-        bombChance: 0.1 + i * 0.01, 
-        spawnRate: 1.0 + i * 0.05 
+      difficulty: {
+        speed: 1.0 + i * 0.05,
+        bombChance: 0.1 + i * 0.01,
+        spawnRate: 1.0 + i * 0.05
       },
       stars: getStarsForLevel(3, i),
       rewards: { orbs: 15 + i * 3, unlocks: isBoss ? 'stage4' : null },
@@ -156,10 +156,10 @@ function generateCatchLevels() {
       stage: 4, sublevel: i,
       goal: getGoalForLevel(4, i),
       timeLimit: 45 + i * 4,
-      difficulty: { 
-        speed: 1.3 + i * 0.05, 
-        bombChance: 0.12 + i * 0.01, 
-        spawnRate: 1.2 + i * 0.05 
+      difficulty: {
+        speed: 1.3 + i * 0.05,
+        bombChance: 0.12 + i * 0.01,
+        spawnRate: 1.2 + i * 0.05
       },
       stars: getStarsForLevel(4, i),
       rewards: { orbs: 25 + i * 4, unlocks: isBoss ? 'stage5' : null },
@@ -174,10 +174,10 @@ function generateCatchLevels() {
       stage: 5, sublevel: i,
       goal: getGoalForLevel(5, i),
       timeLimit: 50 + i * 3,
-      difficulty: { 
-        speed: 1.6 + i * 0.05, 
-        bombChance: 0.15 + i * 0.01, 
-        spawnRate: 1.4 + i * 0.05 
+      difficulty: {
+        speed: 1.6 + i * 0.05,
+        bombChance: 0.15 + i * 0.01,
+        spawnRate: 1.4 + i * 0.05
       },
       stars: getStarsForLevel(5, i),
       rewards: { orbs: 40 + i * 5, unlocks: isBoss ? 'endless' : null },
@@ -198,7 +198,7 @@ function getGoalForLevel(stage, sublevel) {
     { type: GOAL_TYPES.NO_DAMAGE, target: 25 + stage * 5 },
     { type: GOAL_TYPES.COLLECT_SPECIAL, target: 2 + Math.floor(sublevel / 3), item: 'gold' },
   ];
-  
+
   // Чередуем цели
   return goals[(sublevel - 1) % goals.length];
 }
@@ -213,13 +213,94 @@ function getStarsForLevel(stage, sublevel) {
   };
 }
 
+// Универсальный генератор уровней для любого режима
+function generateLevelsForMode(modeType) {
+  const levels = {};
+  const stageSublevels = [5, 7, 10, 12, 15]; // Количество подуровней для каждой стадии
+
+  stageSublevels.forEach((sublevelCount, stageIndex) => {
+    const stage = stageIndex + 1;
+
+    for (let i = 1; i <= sublevelCount; i++) {
+      const isBoss = i === sublevelCount;
+      const levelId = `${stage}-${i}`;
+
+      // Базовые значения для целей
+      const baseScore = modeType === 'puzzle'
+        ? 400 * stage + i * 80
+        : modeType === 'match3'
+          ? 400 * stage + i * 80
+          : 300 * stage + i * 80;
+      const baseCollect = modeType === 'puzzle'
+        ? 4 + Math.floor((i - 1) / 2) + stage
+        : modeType === 'bricks'
+          ? 5 + stage * 2 + i
+          : 12 + stage * 6 + i * 2;
+      const baseCombo = modeType === 'match3'
+        ? 2 + Math.floor(i / 4) + (stage - 1)
+        : modeType === 'puzzle'
+          ? 2 + Math.floor(i / 4) + (stage - 1)
+          : 5 + stage * 2 + Math.floor(i / 2);
+      const baseSurvive = 30 + stage * 10 + i * 3;
+
+      // Чередуем типы целей
+      const goalTypes = [
+        { type: GOAL_TYPES.SCORE, target: baseScore },
+        { type: GOAL_TYPES.COLLECT, target: baseCollect },
+        { type: GOAL_TYPES.COMBO, target: baseCombo },
+        { type: GOAL_TYPES.SURVIVE, target: baseSurvive },
+        { type: GOAL_TYPES.SCORE, target: Math.floor(baseScore * 1.2) },
+      ];
+
+      const goal = goalTypes[(i - 1) % goalTypes.length];
+
+      // Время зависит от типа цели
+      let timeLimit = goal.type === GOAL_TYPES.SURVIVE
+        ? goal.target
+        : modeType === 'puzzle'
+          ? 75 + stage * 10 + i * 5
+          : modeType === 'match3'
+            ? 52 + stage * 8 + i * 3
+            : 45 + stage * 10 + i * 5;
+
+      levels[levelId] = {
+        stage,
+        sublevel: i,
+        goal,
+        timeLimit,
+        difficulty: {
+          speed: 0.75 + stage * 0.2 + i * 0.03,
+          intensity: 0.6 + stage * 0.15 + i * 0.02,
+        },
+        stars: goal.type === GOAL_TYPES.SURVIVE
+          ? {
+              one: Math.ceil(goal.target * 0.7),
+              two: Math.ceil(goal.target * 0.85),
+              three: goal.target,
+            }
+          : {
+              one: goal.target,
+              two: Math.floor(goal.target * 1.25),
+              three: Math.floor(goal.target * 1.6),
+            },
+        rewards: {
+          orbs: 5 + stage * 5 + i * 2,
+          unlocks: isBoss && stage < 5 ? `stage${stage + 1}` : null,
+        },
+        isBoss,
+      };
+    }
+  });
+
+  return levels;
+}
+
 // Генерация уровней для всех режимов
 const GAME_LEVELS = {
   catch: generateCatchLevels(),
-  // Можно добавить для других режимов
-  bricks: {}, // TODO
-  puzzle: {}, // TODO
-  zuma: {},   // TODO
+  bricks: generateLevelsForMode('bricks'),
+  puzzle: generateLevelsForMode('puzzle'),
+  match3: generateLevelsForMode('match3'),
 };
 
 /**
@@ -231,16 +312,32 @@ class LevelSystemManager {
   }
 
   loadProgress() {
-    const saved = localStorage.getItem('orb-masters-level-progress');
-    if (saved) {
-      return JSON.parse(saved);
-    }
-    return {
+    const defaults = {
       catch: { unlockedStage: 1, completed: {}, stars: {} },
       bricks: { unlockedStage: 1, completed: {}, stars: {} },
       puzzle: { unlockedStage: 1, completed: {}, stars: {} },
-      zuma: { unlockedStage: 1, completed: {}, stars: {} },
+      match3: { unlockedStage: 1, completed: {}, stars: {} },
     };
+    try {
+      const saved = localStorage.getItem('orb-masters-level-progress');
+      if (!saved) return defaults;
+      const parsed = JSON.parse(saved);
+      const progress = {};
+      for (const mode of Object.keys(defaults)) {
+        const entry = parsed?.[mode] || {};
+        const unlockedStage = Number(entry.unlockedStage);
+        progress[mode] = {
+          unlockedStage: Number.isInteger(unlockedStage) ? Math.min(5, Math.max(1, unlockedStage)) : 1,
+          completed: entry.completed && typeof entry.completed === 'object' ? entry.completed : {},
+          stars: entry.stars && typeof entry.stars === 'object' ? entry.stars : {},
+        };
+      }
+      return progress;
+    } catch (error) {
+      console.warn('Invalid level progress; starting with a clean level map.', error);
+      localStorage.setItem('orb-masters-level-progress', JSON.stringify(defaults));
+      return defaults;
+    }
   }
 
   saveProgress() {
@@ -269,20 +366,20 @@ class LevelSystemManager {
   isLevelUnlocked(mode, levelId) {
     const level = this.getLevel(mode, levelId);
     if (!level) return false;
-    
+
     const progress = this.progress[mode];
-    
+
     // Первый уровень первой стадии всегда открыт
     if (level.stage === 1 && level.sublevel === 1) return true;
-    
+
     // Проверяем разблокирована ли стадия
     if (level.stage > progress.unlockedStage) return false;
-    
+
     // Проверяем пройден ли предыдущий уровень
-    const prevId = level.sublevel > 1 
+    const prevId = level.sublevel > 1
       ? `${level.stage}-${level.sublevel - 1}`
       : this.getLastLevelOfStage(mode, level.stage - 1);
-    
+
     return progress.completed[prevId] === true;
   }
 
@@ -296,15 +393,17 @@ class LevelSystemManager {
   completeLevel(mode, levelId, starsEarned, score) {
     const progress = this.progress[mode];
     const level = this.getLevel(mode, levelId);
-    
+    if (!progress || !level) return { newStars: false, unlockedNextStage: false };
+
     progress.completed[levelId] = true;
-    
+
     // Обновляем звёзды только если больше
     const currentStars = progress.stars[levelId] || 0;
-    if (starsEarned > currentStars) {
-      progress.stars[levelId] = starsEarned;
+    const earnedStars = Math.max(0, Math.min(3, Number(starsEarned) || 0));
+    if (earnedStars > currentStars) {
+      progress.stars[levelId] = earnedStars;
     }
-    
+
     // Разблокируем следующую стадию если это босс
     if (level?.isBoss && level.rewards?.unlocks?.startsWith('stage')) {
       const nextStage = parseInt(level.rewards.unlocks.replace('stage', ''));
@@ -312,11 +411,11 @@ class LevelSystemManager {
         progress.unlockedStage = nextStage;
       }
     }
-    
+
     this.saveProgress();
-    
+
     return {
-      newStars: starsEarned > currentStars,
+      newStars: earnedStars > currentStars,
       unlockedNextStage: level?.isBoss,
     };
   }
@@ -329,7 +428,7 @@ class LevelSystemManager {
     const completedLevels = Object.keys(progress.completed).length;
     const totalStars = Object.values(progress.stars).reduce((a, b) => a + b, 0);
     const maxStars = totalLevels * 3;
-    
+
     return {
       totalLevels,
       completedLevels,
@@ -344,13 +443,13 @@ class LevelSystemManager {
   getNextLevel(mode) {
     const levels = this.getAllLevels(mode);
     const progress = this.progress[mode];
-    
+
     for (const [id, level] of Object.entries(levels)) {
       if (!progress.completed[id] && this.isLevelUnlocked(mode, id)) {
         return { id, ...level };
       }
     }
-    
+
     return null; // Все пройдены
   }
 
@@ -358,10 +457,10 @@ class LevelSystemManager {
   calculateStars(mode, levelId, result) {
     const level = this.getLevel(mode, levelId);
     if (!level) return 0;
-    
+
     const { goal, stars } = level;
     let value;
-    
+
     switch (goal.type) {
       case GOAL_TYPES.SCORE:
         value = result.score;
@@ -380,7 +479,7 @@ class LevelSystemManager {
       default:
         value = result.score;
     }
-    
+
     if (value >= stars.three) return 3;
     if (value >= stars.two) return 2;
     if (value >= stars.one) return 1;
@@ -391,9 +490,9 @@ class LevelSystemManager {
   isGoalCompleted(mode, levelId, result) {
     const level = this.getLevel(mode, levelId);
     if (!level) return false;
-    
+
     const { goal } = level;
-    
+
     switch (goal.type) {
       case GOAL_TYPES.SCORE:
         return result.score >= goal.target;
@@ -415,13 +514,15 @@ class LevelSystemManager {
   // Сбросить прогресс (для тестирования)
   resetProgress(mode = null) {
     if (mode) {
+      // The public mode id is `zuma`, but its level definitions use `match3`.
+      if (mode === 'zuma') mode = 'match3';
       this.progress[mode] = { unlockedStage: 1, completed: {}, stars: {} };
     } else {
       this.progress = {
         catch: { unlockedStage: 1, completed: {}, stars: {} },
         bricks: { unlockedStage: 1, completed: {}, stars: {} },
         puzzle: { unlockedStage: 1, completed: {}, stars: {} },
-        zuma: { unlockedStage: 1, completed: {}, stars: {} },
+        match3: { unlockedStage: 1, completed: {}, stars: {} },
       };
     }
     this.saveProgress();
@@ -431,5 +532,5 @@ class LevelSystemManager {
 // Синглтон
 const levelSystem = new LevelSystemManager();
 
-export { GOAL_TYPES, STAGE_CONFIG, GAME_LEVELS };
+export { GAME_LEVELS, LevelSystemManager };
 export default levelSystem;

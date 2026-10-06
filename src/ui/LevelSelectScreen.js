@@ -3,7 +3,7 @@
  * Экран выбора уровней с прогрессом и звёздами
  */
 
-import { COLORS, FONTS, FONT_SIZES, UI, ANIMATIONS, applyStyles } from '../core/GameConfig.js';
+import { COLORS, FONTS, FONT_SIZES, UI, ANIMATIONS, GAME_MODES, applyStyles } from '../core/GameConfig.js';
 import { SoundEffects } from '../game/SoundEffects.js';
 import { t } from '../i18n/LanguageManager.js';
 import levelSystem, { STAGE_CONFIG, GOAL_TYPES } from '../core/LevelSystem.js';
@@ -11,6 +11,10 @@ import levelSystem, { STAGE_CONFIG, GOAL_TYPES } from '../core/LevelSystem.js';
 class LevelSelectScreen {
   constructor(mode, engine, onBack) {
     this.mode = mode;
+    // The level data predates the public mode name and is stored under `match3`.
+    // Keep the public id (`zuma`) for labels and scene selection, while using
+    // the key expected by LevelSystem for progress and level data.
+    this.levelSystemMode = mode === 'zuma' ? 'match3' : mode;
     this.engine = engine;
     this.onBack = onBack;
     this.container = null;
@@ -96,7 +100,7 @@ class LevelSelectScreen {
     });
 
     // Progress stats
-    const stats = levelSystem.getProgressStats(this.mode);
+    const stats = levelSystem.getProgressStats(this.levelSystemMode);
     const statsDiv = document.createElement('div');
     applyStyles(statsDiv, {
       display: 'flex',
@@ -137,7 +141,7 @@ class LevelSelectScreen {
       background: 'rgba(0,0,0,0.2)',
     });
 
-    const progress = levelSystem.progress[this.mode];
+    const progress = levelSystem.progress[this.levelSystemMode];
 
     Object.entries(STAGE_CONFIG).forEach(([stageNum, config]) => {
       const stage = parseInt(stageNum);
@@ -145,10 +149,10 @@ class LevelSelectScreen {
       const isActive = stage === this.currentStage;
 
       const tab = document.createElement('button');
-      tab.innerHTML = isUnlocked 
+      tab.innerHTML = isUnlocked
         ? `${'⭐'.repeat(stage)} ${config.name}`
         : `🔒 ${config.name}`;
-      
+
       applyStyles(tab, {
         padding: `${UI.spacing.sm} ${UI.spacing.md}`,
         borderRadius: UI.borderRadius.md,
@@ -181,7 +185,7 @@ class LevelSelectScreen {
 
   updateTabs(container) {
     const tabs = container.querySelectorAll('button');
-    const progress = levelSystem.progress[this.mode];
+    const progress = levelSystem.progress[this.levelSystemMode];
 
     tabs.forEach((tab, index) => {
       const stage = index + 1;
@@ -198,9 +202,9 @@ class LevelSelectScreen {
   renderLevelGrid() {
     this.levelGrid.innerHTML = '';
 
-    const levels = levelSystem.getLevelsForStage(this.mode, this.currentStage);
+    const levels = levelSystem.getLevelsForStage(this.levelSystemMode, this.currentStage);
     const stageConfig = STAGE_CONFIG[this.currentStage];
-    const progress = levelSystem.progress[this.mode];
+    const progress = levelSystem.progress[this.levelSystemMode];
 
     // Stage header
     const stageHeader = document.createElement('div');
@@ -229,6 +233,48 @@ class LevelSelectScreen {
     stageHeader.appendChild(stageInfo);
     this.levelGrid.appendChild(stageHeader);
 
+    const nextLevel = levelSystem.getNextLevel(this.levelSystemMode);
+    if (nextLevel && nextLevel.stage === this.currentStage) {
+      const continueCard = document.createElement('button');
+      continueCard.type = 'button';
+      continueCard.className = 'orb-next-level-card';
+      applyStyles(continueCard, {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: UI.spacing.md,
+        width: '100%',
+        maxWidth: '500px',
+        margin: `0 auto ${UI.spacing.lg}`,
+        padding: UI.spacing.md,
+        border: `1px solid ${stageConfig.color}99`,
+        borderRadius: UI.borderRadius.lg,
+        background: `linear-gradient(110deg, ${stageConfig.color}35, rgba(255,255,255,0.06))`,
+        color: COLORS.textPrimary,
+        textAlign: 'left',
+        cursor: 'pointer',
+      });
+      const nextText = document.createElement('span');
+      const nextTitle = document.createElement('strong');
+      nextTitle.textContent = `${t('mainMenu.continue')} · ${t('levels.playLevel')} ${nextLevel.sublevel}`;
+      const nextGoal = document.createElement('span');
+      nextGoal.textContent = `${this.getGoalIcon(nextLevel.goal.type)} ${nextLevel.goal.target} · +${nextLevel.rewards.orbs} Orbs`;
+      nextGoal.style.display = 'block';
+      nextGoal.style.marginTop = '5px';
+      nextGoal.style.color = COLORS.textSecondary;
+      nextGoal.style.fontSize = FONT_SIZES.sm;
+      nextText.append(nextTitle, nextGoal);
+      const arrow = document.createElement('span');
+      arrow.textContent = '▶';
+      arrow.style.fontSize = FONT_SIZES.xl;
+      continueCard.append(nextText, arrow);
+      continueCard.addEventListener('click', () => {
+        SoundEffects.playClick();
+        this.startLevel(nextLevel.id);
+      });
+      this.levelGrid.appendChild(continueCard);
+    }
+
     // Grid
     const grid = document.createElement('div');
     applyStyles(grid, {
@@ -240,7 +286,7 @@ class LevelSelectScreen {
     });
 
     levels.forEach(level => {
-      const isUnlocked = levelSystem.isLevelUnlocked(this.mode, level.id);
+      const isUnlocked = levelSystem.isLevelUnlocked(this.levelSystemMode, level.id);
       const isCompleted = progress.completed[level.id];
       const stars = progress.stars[level.id] || 0;
 
@@ -297,7 +343,7 @@ class LevelSelectScreen {
 
       // Stars
       const starsDiv = document.createElement('div');
-      starsDiv.innerHTML = isCompleted 
+      starsDiv.innerHTML = isCompleted
         ? this.renderStars(stars)
         : '<span style="color: rgba(255,255,255,0.2)">☆☆☆</span>';
       starsDiv.style.fontSize = '12px';
@@ -319,36 +365,12 @@ class LevelSelectScreen {
     this.levelGrid.appendChild(grid);
 
     // Next level button
-    const nextLevel = levelSystem.getNextLevel(this.mode);
-    if (nextLevel && nextLevel.stage === this.currentStage) {
-      const playBtn = document.createElement('button');
-      playBtn.textContent = `▶ ${t('levels.playLevel')} ${nextLevel.sublevel}`;
-      applyStyles(playBtn, {
-        display: 'block',
-        width: '100%',
-        maxWidth: '300px',
-        margin: `${UI.spacing.xl} auto 0`,
-        padding: UI.spacing.md,
-        borderRadius: UI.borderRadius.md,
-        border: 'none',
-        background: stageConfig.color,
-        color: '#fff',
-        fontSize: FONT_SIZES.lg,
-        fontWeight: '700',
-        cursor: 'pointer',
-      });
-      playBtn.addEventListener('click', () => {
-        SoundEffects.playClick();
-        this.startLevel(nextLevel.id);
-      });
-      this.levelGrid.appendChild(playBtn);
-    }
   }
 
   renderStars(count) {
     let html = '';
     for (let i = 1; i <= 3; i++) {
-      html += i <= count 
+      html += i <= count
         ? '<span style="color: #F59E0B">★</span>'
         : '<span style="color: rgba(255,255,255,0.2)">☆</span>';
     }
@@ -372,12 +394,17 @@ class LevelSelectScreen {
     // Сохраняем выбранный уровень
     localStorage.setItem('orb-masters-current-level', levelId);
     localStorage.setItem('orb-masters-current-mode', this.mode);
-    
+
     this.close();
-    
+    window.scrollTo(0, 0);
+
+    // Получаем sceneKey из конфига режима
+    const modeConfig = GAME_MODES[this.mode];
+    const sceneKey = modeConfig?.sceneKey || `level_${this.mode}`;
+
     // Запускаем игру
-    const level = levelSystem.getLevel(this.mode, levelId);
-    this.engine.goTo(`level_${this.mode}`, { levelId, levelConfig: level });
+    const level = levelSystem.getLevel(this.levelSystemMode, levelId);
+    this.engine.goTo(sceneKey, { levelId, levelConfig: level });
   }
 
   close() {

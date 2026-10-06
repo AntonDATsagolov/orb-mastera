@@ -5,6 +5,7 @@
 
 import playerProfile from '../core/PlayerProfile.js';
 import orbsManager from '../core/OrbsManager.js';
+import adManager from '../core/AdManager.js';
 import difficultyManager from '../core/DifficultyManager.js';
 import { COLORS, FONTS, FONT_SIZES, UI, ANIMATIONS, GAME_MODES, applyStyles, formatNumber } from '../core/GameConfig.js';
 import { SoundEffects } from '../game/SoundEffects.js';
@@ -22,13 +23,19 @@ class GameResultScreen {
       duration: 0,
       isPerfect: false,
       isWin: true,
+      // Новые опции для системы уровней
+      isLevelMode: false,
+      levelId: null,
+      stars: 0,
+      levelReward: 0,
       onRetry: null,
       onHome: null,
       onNextMode: null,
+      onNextLevel: null,
       engine: null,
       ...options,
     };
-    
+
     this.container = null;
     this.rewards = null;
     this.appliedRewards = false;
@@ -43,7 +50,7 @@ class GameResultScreen {
       stage: this.options.stage,
       duration: this.options.duration,
       isPerfect: this.options.isPerfect,
-      isFirstWinToday: this.checkFirstWinToday(),
+      isFirstWinToday: this.options.isWin && this.checkFirstWinToday(),
     });
 
     this.createUI();
@@ -61,6 +68,24 @@ class GameResultScreen {
   }
 
   createUI() {
+    // Добавляем анимации если ещё не добавлены
+    if (!document.getElementById('game-result-styles')) {
+      const style = document.createElement('style');
+      style.id = 'game-result-styles';
+      style.textContent = `
+        @keyframes starPop {
+          0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+          60% { transform: scale(1.3) rotate(10deg); }
+          100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes scaleIn {
+          0% { transform: scale(0.8); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     // Оверлей
     this.container = document.createElement('div');
     applyStyles(this.container, {
@@ -92,8 +117,19 @@ class GameResultScreen {
 
     // Заголовок
     const modeConfig = GAME_MODES[this.options.mode];
+
+    // Для режима уровней показываем "Уровень X пройден!"
+    let titleText;
+    if (this.options.isLevelMode && this.options.isWin) {
+      titleText = `${i18n.t('levelSystem.levelComplete.title') || 'Уровень пройден!'}`;
+    } else if (this.options.isWin) {
+      titleText = `🎉 ${i18n.t('results.victory')}`;
+    } else {
+      titleText = `💀 ${i18n.t('results.gameOver')}`;
+    }
+
     const title = document.createElement('h2');
-    title.textContent = this.options.isWin ? `🎉 ${i18n.t('results.victory')}` : `💀 ${i18n.t('results.gameOver')}`;
+    title.textContent = titleText;
     applyStyles(title, {
       fontSize: FONT_SIZES.xxl,
       fontWeight: '800',
@@ -107,9 +143,58 @@ class GameResultScreen {
     });
     modal.appendChild(title);
 
-    // Режим
+    // Звёзды для режима уровней
+    if (this.options.isLevelMode && this.options.isWin && this.options.stars > 0) {
+      const starsContainer = document.createElement('div');
+      applyStyles(starsContainer, {
+        display: 'flex',
+        justifyContent: 'center',
+        gap: UI.spacing.md,
+        marginBottom: UI.spacing.sm,
+      });
+
+      for (let i = 1; i <= 3; i++) {
+        const star = document.createElement('div');
+        star.textContent = i <= this.options.stars ? '⭐' : '☆';
+        applyStyles(star, {
+          fontSize: '40px',
+          opacity: i <= this.options.stars ? '1' : '0.3',
+          animation: i <= this.options.stars ? `starPop 0.5s ${ANIMATIONS.easeOutBack} ${i * 0.2}s both` : 'none',
+          filter: i <= this.options.stars ? 'drop-shadow(0 0 8px #F59E0B)' : 'none',
+        });
+        starsContainer.appendChild(star);
+      }
+
+      // Текст о звёздах
+      const starsText = document.createElement('div');
+      const starMessages = {
+        3: i18n.t('levelSystem.levelComplete.perfect') || 'Отлично!',
+        2: i18n.t('levelSystem.levelComplete.great') || 'Хорошо!',
+        1: i18n.t('levelSystem.levelComplete.good') || 'Неплохо!',
+      };
+      starsText.textContent = starMessages[this.options.stars] || '';
+      applyStyles(starsText, {
+        fontSize: FONT_SIZES.lg,
+        fontWeight: '600',
+        color: '#F59E0B',
+        textAlign: 'center',
+        marginTop: UI.spacing.xs,
+      });
+
+      const starsWrapper = document.createElement('div');
+      starsWrapper.appendChild(starsContainer);
+      starsWrapper.appendChild(starsText);
+      modal.appendChild(starsWrapper);
+    }
+
+    // Режим и уровень
     const modeLabel = document.createElement('div');
-    modeLabel.textContent = `${modeConfig?.icon || '🎮'} ${i18n.t(`modes.${this.options.mode}.name`)}`;
+    if (this.options.isLevelMode && this.options.levelId) {
+      const [stage, sublevel] = this.options.levelId.split('-');
+      modeLabel.textContent = `${modeConfig?.icon || '🎮'} ${i18n.t(`modes.${this.options.mode}.name`)} • ${i18n.t('levelSystem.level') || 'Уровень'} ${sublevel}`;
+    } else {
+      modeLabel.textContent = `${modeConfig?.icon || '🎮'} ${i18n.t(`modes.${this.options.mode}.name`)}`;
+    }
     applyStyles(modeLabel, {
       fontSize: FONT_SIZES.md,
       color: COLORS.textSecondary,
@@ -149,7 +234,7 @@ class GameResultScreen {
     // Лучший результат
     const bestScore = playerProfile.stats.bestScorePerMode[this.options.mode] || 0;
     const isNewBest = this.options.score > bestScore;
-    
+
     if (isNewBest && this.options.score > 0) {
       const newBestLabel = document.createElement('div');
       newBestLabel.textContent = `🏆 ${i18n.t('results.newRecord')}`;
@@ -323,7 +408,11 @@ class GameResultScreen {
 
     // Кнопка удвоить (реклама)
     const doubleBtn = document.createElement('button');
-    doubleBtn.textContent = `📺 ${i18n.t('results.doubleReward')}`;
+    doubleBtn.textContent = adManager.isAdReady()
+      ? `📺 ${i18n.t('results.doubleReward')}`
+      : `📺 ${i18n.t('shop.iapUnavailable')}`;
+    doubleBtn.disabled = !adManager.isAdReady();
+    doubleBtn.setAttribute('aria-disabled', String(doubleBtn.disabled));
     applyStyles(doubleBtn, {
       width: '100%',
       padding: UI.spacing.md,
@@ -333,7 +422,8 @@ class GameResultScreen {
       color: COLORS.warningOrange,
       fontSize: FONT_SIZES.md,
       fontWeight: '600',
-      cursor: 'pointer',
+      cursor: doubleBtn.disabled ? 'not-allowed' : 'pointer',
+      opacity: doubleBtn.disabled ? '0.55' : '1',
       transition: `all ${ANIMATIONS.fast}`,
     });
 
@@ -347,18 +437,146 @@ class GameResultScreen {
 
     doubleBtn.addEventListener('click', () => {
       SoundEffects.playBonus();
-      // Симуляция просмотра рекламы
       doubleBtn.textContent = i18n.t('results.loading');
       doubleBtn.disabled = true;
-      
-      setTimeout(() => {
-        this.applyRewardsAndClose(true);
-      }, 1000);
+      adManager.showRewardedVideo({
+        reward: this.rewards.finalOrbs,
+        reason: 'Double game reward',
+        onComplete: () => this.applyRewardsAndClose(true),
+        onError: () => {
+          doubleBtn.textContent = `📺 ${i18n.t('shop.iapUnavailable')}`;
+          doubleBtn.disabled = true;
+        },
+      });
     });
 
     modal.appendChild(doubleBtn);
 
-    // Кнопки действий
+    // Кнопки действий - разный набор для режима уровней
+    if (this.options.isLevelMode && this.options.isWin) {
+      // Режим уровней - показываем "Следующий уровень", "Переиграть", "К уровням"
+      this.createLevelModeButtons(modal);
+    } else {
+      // Обычный режим
+      this.createNormalModeButtons(modal);
+    }
+
+    // Рекомендация следующего режима (только при победе И НЕ в режиме уровней)
+    if (this.options.isWin && !this.options.isLevelMode) {
+      const nextModeSection = this.createNextModeRecommendation();
+      if (nextModeSection) {
+        modal.appendChild(nextModeSection);
+      }
+    }
+
+    this.container.appendChild(modal);
+    document.body.appendChild(this.container);
+  }
+
+  /**
+   * Создаёт кнопки для режима уровней
+   */
+  createLevelModeButtons(modal) {
+    const buttonsContainer = document.createElement('div');
+    applyStyles(buttonsContainer, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: UI.spacing.sm,
+      width: '100%',
+    });
+
+    // Главная кнопка "Следующий уровень"
+    const nextLevelBtn = document.createElement('button');
+    nextLevelBtn.textContent = `▶ ${i18n.t('levelSystem.levelComplete.nextLevel') || 'Следующий уровень'}`;
+    applyStyles(nextLevelBtn, {
+      width: '100%',
+      padding: UI.spacing.lg,
+      borderRadius: UI.borderRadius.md,
+      border: 'none',
+      background: COLORS.gradientSuccess,
+      color: COLORS.textPrimary,
+      fontSize: FONT_SIZES.lg,
+      fontWeight: '700',
+      cursor: 'pointer',
+      transition: `transform ${ANIMATIONS.fast}`,
+    });
+
+    nextLevelBtn.addEventListener('click', () => {
+      SoundEffects.playClick();
+      this.applyRewardsAndClose(false);
+      if (this.options.onNextLevel) {
+        this.options.onNextLevel();
+      }
+    });
+
+    // Ряд с Переиграть и К уровням
+    const secondaryRow = document.createElement('div');
+    applyStyles(secondaryRow, {
+      display: 'flex',
+      gap: UI.spacing.sm,
+      width: '100%',
+    });
+
+    // Переиграть
+    const retryBtn = document.createElement('button');
+    retryBtn.textContent = `🔄 ${i18n.t('levelSystem.levelComplete.retry') || 'Переиграть'}`;
+    applyStyles(retryBtn, {
+      flex: '1',
+      padding: UI.spacing.md,
+      borderRadius: UI.borderRadius.md,
+      border: 'none',
+      background: 'rgba(255, 255, 255, 0.1)',
+      color: COLORS.textSecondary,
+      fontSize: FONT_SIZES.md,
+      fontWeight: '600',
+      cursor: 'pointer',
+    });
+
+    retryBtn.addEventListener('click', () => {
+      SoundEffects.playClick();
+      this.applyRewardsAndClose(false);
+      if (this.options.onRetry) {
+        this.options.onRetry();
+      }
+    });
+
+    // К уровням
+    const toLevelsBtn = document.createElement('button');
+    toLevelsBtn.textContent = `📋 ${i18n.t('levelSystem.levelComplete.toLevels') || 'К уровням'}`;
+    applyStyles(toLevelsBtn, {
+      flex: '1',
+      padding: UI.spacing.md,
+      borderRadius: UI.borderRadius.md,
+      border: 'none',
+      background: 'rgba(255, 255, 255, 0.1)',
+      color: COLORS.textSecondary,
+      fontSize: FONT_SIZES.md,
+      fontWeight: '600',
+      cursor: 'pointer',
+    });
+
+    toLevelsBtn.addEventListener('click', () => {
+      SoundEffects.playClick();
+      this.applyRewardsAndClose(false);
+      if (this.options.onHome) {
+        this.options.onHome();
+      } else if (this.options.engine) {
+        this.options.engine.goTo('menu');
+      }
+    });
+
+    secondaryRow.appendChild(retryBtn);
+    secondaryRow.appendChild(toLevelsBtn);
+
+    buttonsContainer.appendChild(nextLevelBtn);
+    buttonsContainer.appendChild(secondaryRow);
+    modal.appendChild(buttonsContainer);
+  }
+
+  /**
+   * Создаёт кнопки для обычного режима
+   */
+  createNormalModeButtons(modal) {
     const buttonsRow = document.createElement('div');
     applyStyles(buttonsRow, {
       display: 'flex',
@@ -419,31 +637,20 @@ class GameResultScreen {
     buttonsRow.appendChild(retryBtn);
     buttonsRow.appendChild(homeBtn);
     modal.appendChild(buttonsRow);
-
-    // Рекомендация следующего режима (только при победе)
-    if (this.options.isWin) {
-      const nextModeSection = this.createNextModeRecommendation();
-      if (nextModeSection) {
-        modal.appendChild(nextModeSection);
-      }
-    }
-
-    this.container.appendChild(modal);
-    document.body.appendChild(this.container);
   }
 
   /**
    * Создаёт рекомендацию следующего режима
    */
   createNextModeRecommendation() {
-    const modes = ['catch', 'bricks', 'puzzle', 'match3'];
+    const modes = ['catch', 'bricks', 'puzzle', 'zuma'];
     const currentIndex = modes.indexOf(this.options.mode);
-    
+
     // Получаем следующий режим (циклически)
     const nextIndex = (currentIndex + 1) % modes.length;
     const nextMode = modes[nextIndex];
     const modeConfig = GAME_MODES[nextMode];
-    
+
     if (!modeConfig) return null;
 
     const section = document.createElement('div');
@@ -520,17 +727,17 @@ class GameResultScreen {
     playBtn.addEventListener('click', () => {
       SoundEffects.playClick();
       this.applyRewardsAndClose(false);
-      
+
       // Переходим к следующему режиму
       if (this.options.engine) {
         // Сохраняем выбранный режим
         localStorage.setItem('orb-masters-selected-mode', nextMode);
         // Запускаем соответствующую сцену
         const sceneMap = {
-          catch: 'catch',
-          bricks: 'bricks',
-          puzzle: 'puzzle',
-          match3: 'match3',
+          catch: 'level_catch',
+          bricks: 'level_knockout',
+          puzzle: 'level_stack',
+          zuma: 'level_match3',
         };
         this.options.engine.goTo(sceneMap[nextMode] || 'menu');
       }
@@ -550,7 +757,7 @@ class GameResultScreen {
 
     // Анимация счёта
     this.animateNumber(scoreEl, 0, this.options.score, 1000);
-    
+
     // Анимация Orbs (с задержкой)
     setTimeout(() => {
       this.animateNumber(orbsEl, 0, this.rewards.finalOrbs, 800, '+');
@@ -565,22 +772,22 @@ class GameResultScreen {
 
   animateNumber(element, start, end, duration, prefix = '') {
     const startTime = performance.now();
-    
+
     const animate = (currentTime) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // Easing
       const easeOut = 1 - Math.pow(1 - progress, 3);
       const current = Math.floor(start + (end - start) * easeOut);
-      
+
       element.textContent = prefix + formatNumber(current);
-      
+
       if (progress < 1) {
         requestAnimationFrame(animate);
       }
     };
-    
+
     requestAnimationFrame(animate);
   }
 
@@ -588,7 +795,7 @@ class GameResultScreen {
     if (!this.appliedRewards) {
       const result = orbsManager.applyRewards(doubled);
       this.appliedRewards = true;
-      
+
       // Обновляем записи о рекордах
       const orbsEarned = doubled ? this.rewards.finalOrbs * 2 : this.rewards.finalOrbs;
       recordsManager.updateRecord(
@@ -602,37 +809,45 @@ class GameResultScreen {
       dailyChallenges.updateProgress(CHALLENGE_TYPES.PLAY_GAMES, 1);
       dailyChallenges.updateProgress(CHALLENGE_TYPES.SCORE_TOTAL, this.options.score);
       dailyChallenges.updateProgress(CHALLENGE_TYPES.COLLECT_ORBS, orbsEarned);
-      
+
       if (this.options.isWin) {
         dailyChallenges.updateProgress(CHALLENGE_TYPES.WIN_MODE, 1, this.options.mode);
       }
-      
+
       if (this.options.combo > 0) {
         dailyChallenges.updateProgress(CHALLENGE_TYPES.COMBO_COUNT, this.options.combo);
       }
-      
+
       // Записываем результат в систему адаптивной сложности
       const modeMap = {
         'cashCatcher': 'cashCatcher',
-        'bricksBreaker': 'bricksBreaker', 
+        'catch': 'cashCatcher',
+        'bricksBreaker': 'bricksBreaker',
+        'bricks': 'bricksBreaker',
         'blockPuzzle': 'blockPuzzle',
-        'knockoutZuma': 'knockoutZuma'
+        'puzzle': 'blockPuzzle',
+        'knockoutZuma': 'knockoutZuma',
+        'zuma': 'knockoutZuma',
+        'match3': 'knockoutZuma'
       };
       const diffMode = modeMap[this.options.mode];
       if (diffMode) {
+        const playTime = this.options.playTimeSeconds ?? this.options.duration ?? 0;
+        const quickLoss = this.options.isWin ? false : difficultyManager.detectQuickLoss(diffMode, this.options.score, playTime);
         difficultyManager.recordGameResult(
           diffMode,
           this.options.score,
-          this.options.playTimeSeconds || 0
+          playTime,
+          quickLoss
         );
       }
-      
+
       // Показать Level Up если есть
       if (result.levelUp?.leveledUp) {
         this.showLevelUpNotification(result.levelUp);
       }
     }
-    
+
     this.hide();
   }
 

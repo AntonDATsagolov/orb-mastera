@@ -5,7 +5,7 @@ import { Physics } from './Physics.js';
 import { SpecialBlockHandler } from './SpecialBlocks.js';
 
 export class ZumaGame {
-  constructor(canvas, engine) {
+  constructor(canvas, engine, options = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.engine = engine;
@@ -13,9 +13,17 @@ export class ZumaGame {
     this.W = canvas.width;
     this.H = canvas.height;
 
+    // Настройки сложности из уровня
+    this.difficulty = {
+      speed: options.difficulty?.speed || 1.0,           // Скорость шарика
+      descendSpeed: options.difficulty?.intensity || 1.0, // Скорость спуска блоков
+      blockHealth: options.difficulty?.blockHealth || 1,  // Здоровье блоков
+      initialRows: options.difficulty?.rows || 3,         // Начальные ряды блоков
+    };
+
     // системы
     this.ballManager = new BallManager();
-    this.blockManager = new BlockManager(this.W, this.H);
+    this.blockManager = new BlockManager(this.W, this.H, this.difficulty);
     this.physics = new Physics(this.W, this.H);
     this.specialHandler = new SpecialBlockHandler();
 
@@ -192,9 +200,9 @@ export class ZumaGame {
 
     e.preventDefault();
 
-    // запускаем шарики
+    // запускаем шарики (скорость зависит от сложности)
     for (let i = 0; i < this.ballCount; i++) {
-      const speed = 8;
+      const speed = 8 * this.difficulty.speed;
       const offsetAngle = (Math.random() - 0.5) * 0.2; // небольшой разброс
 
       const ball = new Ball(
@@ -425,5 +433,3 @@ export class ZumaGame {
     this.currentLaunchPos.x = w / 2;
   }
 }
-
-export { ZumaGame };

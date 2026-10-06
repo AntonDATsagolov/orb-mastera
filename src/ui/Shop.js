@@ -11,95 +11,95 @@ import i18n from '../i18n/LanguageManager.js';
 
 // Пакеты сфер для покупки за реальные деньги
 const ORB_PACKAGES = [
-  { id: 'orbs_100', amount: 100, price: 0.99, icon: '🔮', bonus: 0 },
-  { id: 'orbs_500', amount: 500, price: 3.99, icon: '💎', bonus: 50, badge: 'popular' },
-  { id: 'orbs_1200', amount: 1200, price: 7.99, icon: '💎', bonus: 200 },
-  { id: 'orbs_2500', amount: 2500, price: 14.99, icon: '👑', bonus: 500, badge: 'bestValue' },
-  { id: 'orbs_6000', amount: 6000, price: 29.99, icon: '👑', bonus: 1500 },
+  { id: 'orbs_100', amount: 100, icon: '🔮', bonus: 0 },
+  { id: 'orbs_500', amount: 500, icon: '💎', bonus: 50, badge: 'popular' },
+  { id: 'orbs_1200', amount: 1200, icon: '💎', bonus: 200 },
+  { id: 'orbs_2500', amount: 2500, icon: '👑', bonus: 500, badge: 'bestValue' },
+  { id: 'orbs_6000', amount: 6000, icon: '👑', bonus: 1500 },
 ];
 
 // Определение товаров
 const SHOP_ITEMS = {
   boosters: [
-    { 
-      id: 'extra_life', 
+    {
+      id: 'extra_life',
       nameKey: 'shop.items.extraLife.name',
       descKey: 'shop.items.extraLife.desc',
-      icon: '❤️', 
-      price: 100, 
+      icon: '❤️',
+      price: 100,
       type: 'consumable',
       maxStack: 5
     },
-    { 
-      id: 'score_boost', 
+    {
+      id: 'score_boost',
       nameKey: 'shop.items.scoreBoost.name',
       descKey: 'shop.items.scoreBoost.desc',
-      icon: '⭐', 
-      price: 150, 
+      icon: '⭐',
+      price: 150,
       type: 'consumable',
       maxStack: 3
     },
-    { 
-      id: 'slow_time', 
+    {
+      id: 'slow_time',
       nameKey: 'shop.items.slowTime.name',
       descKey: 'shop.items.slowTime.desc',
-      icon: '⏱️', 
-      price: 120, 
+      icon: '⏱️',
+      price: 120,
       type: 'consumable',
       maxStack: 3
     },
   ],
   upgrades: [
-    { 
-      id: 'orb_magnet', 
+    {
+      id: 'orb_magnet',
       nameKey: 'shop.items.orbMagnet.name',
       descKey: 'shop.items.orbMagnet.desc',
-      icon: '🧲', 
-      price: 500, 
+      icon: '🧲',
+      price: 500,
       type: 'permanent'
     },
-    { 
-      id: 'bigger_basket', 
+    {
+      id: 'bigger_basket',
       nameKey: 'shop.items.biggerBasket.name',
       descKey: 'shop.items.biggerBasket.desc',
-      icon: '🧺', 
-      price: 400, 
+      icon: '🧺',
+      price: 400,
       type: 'permanent'
     },
-    { 
-      id: 'starting_points', 
+    {
+      id: 'starting_points',
       nameKey: 'shop.items.startingPoints.name',
       descKey: 'shop.items.startingPoints.desc',
-      icon: '🚀', 
-      price: 300, 
+      icon: '🚀',
+      price: 300,
       type: 'permanent'
     },
   ],
   cosmetic: [
-    { 
-      id: 'theme_purple', 
+    {
+      id: 'theme_purple',
       nameKey: 'shop.items.purpleTheme.name',
       descKey: 'shop.items.purpleTheme.desc',
-      icon: '💜', 
-      price: 200, 
+      icon: '💜',
+      price: 200,
       type: 'theme',
       color: '#8B5CF6'
     },
-    { 
-      id: 'theme_gold', 
+    {
+      id: 'theme_gold',
       nameKey: 'shop.items.goldTheme.name',
       descKey: 'shop.items.goldTheme.desc',
-      icon: '💛', 
-      price: 300, 
+      icon: '💛',
+      price: 300,
       type: 'theme',
       color: '#F59E0B'
     },
-    { 
-      id: 'theme_neon', 
+    {
+      id: 'theme_neon',
       nameKey: 'shop.items.neonTheme.name',
       descKey: 'shop.items.neonTheme.desc',
-      icon: '💚', 
-      price: 400, 
+      icon: '💚',
+      price: 400,
       type: 'theme',
       color: '#10B981'
     },
@@ -190,7 +190,7 @@ class ShopManager {
    */
   purchase(item) {
     const orbs = orbsManager.getBalance();
-    
+
     // Проверяем достаточно ли сфер
     if (orbs < item.price) {
       return { success: false, reason: 'not_enough' };
@@ -202,7 +202,7 @@ class ShopManager {
         return { success: false, reason: 'already_owned' };
       }
       this.data.ownedPermanent.push(item.id);
-    } 
+    }
     else if (item.type === 'theme') {
       if (this.isThemeOwned(item.id)) {
         return { success: false, reason: 'already_owned' };
@@ -220,7 +220,7 @@ class ShopManager {
     // Списываем сферы
     orbsManager.spend(item.price, `Shop: ${item.id}`);
     this.save();
-    
+
     return { success: true };
   }
 }
@@ -309,7 +309,7 @@ export function showShop(onClose) {
     fontWeight: '600',
     color: COLORS.orbPurple,
   });
-  
+
   function updateBalance() {
     balanceDiv.innerHTML = `🔮 ${formatNumber(orbsManager.getBalance())}`;
   }
@@ -351,7 +351,7 @@ export function showShop(onClose) {
       background: tabName === currentTab ? COLORS.orbPurple : 'transparent',
       color: tabName === currentTab ? '#fff' : COLORS.textSecondary,
     });
-    
+
     btn.onclick = () => {
       SoundEffects.playClick();
       currentTab = tabName;
@@ -422,7 +422,7 @@ export function showShop(onClose) {
     ORB_PACKAGES.forEach(pkg => {
       const card = document.createElement('div');
       applyStyles(card, {
-        background: pkg.badge === 'bestValue' 
+        background: pkg.badge === 'bestValue'
           ? `linear-gradient(135deg, ${COLORS.orbPurple}40, ${COLORS.cardDark})`
           : COLORS.cardDark,
         borderRadius: UI.borderRadius.lg,
@@ -430,8 +430,8 @@ export function showShop(onClose) {
         display: 'flex',
         alignItems: 'center',
         gap: UI.spacing.md,
-        border: pkg.badge === 'bestValue' 
-          ? `2px solid ${COLORS.orbPurple}` 
+        border: pkg.badge === 'bestValue'
+          ? `2px solid ${COLORS.orbPurple}`
           : '2px solid transparent',
         position: 'relative',
         overflow: 'hidden',
@@ -491,8 +491,7 @@ export function showShop(onClose) {
       });
 
       const perOrb = document.createElement('div');
-      const pricePerOrb = (pkg.price / (pkg.amount + pkg.bonus)).toFixed(3);
-      perOrb.textContent = `$${pricePerOrb}/${i18n.t('shop.perOrb')}`;
+      perOrb.textContent = i18n.t('shop.iapDisclaimer');
       applyStyles(perOrb, {
         fontSize: FONT_SIZES.xs,
         color: COLORS.textSecondary,
@@ -503,7 +502,8 @@ export function showShop(onClose) {
 
       // Кнопка покупки
       const btn = document.createElement('button');
-      btn.textContent = `$${pkg.price.toFixed(2)}`;
+      btn.textContent = i18n.t('shop.iapUnavailable');
+      btn.disabled = true;
       applyStyles(btn, {
         background: COLORS.gradientPurple,
         color: '#fff',
@@ -512,17 +512,9 @@ export function showShop(onClose) {
         borderRadius: UI.borderRadius.md,
         fontSize: FONT_SIZES.md,
         fontWeight: '700',
-        cursor: 'pointer',
-        transition: 'transform 0.2s ease',
+        cursor: 'not-allowed',
+        opacity: '0.55',
       });
-
-      btn.onmouseenter = () => btn.style.transform = 'scale(1.05)';
-      btn.onmouseleave = () => btn.style.transform = 'scale(1)';
-
-      btn.onclick = () => {
-        SoundEffects.playClick();
-        handleOrbPurchase(pkg);
-      };
 
       card.appendChild(icon);
       card.appendChild(content);
@@ -543,126 +535,20 @@ export function showShop(onClose) {
     itemsContainer.appendChild(disclaimer);
   }
 
-  // Обработка покупки орбов (mock для тестирования)
-  function handleOrbPurchase(pkg) {
-    // В продакшене здесь будет интеграция с платежной системой
-    // Пока что делаем mock подтверждение
-    
-    const confirmOverlay = document.createElement('div');
-    applyStyles(confirmOverlay, {
-      position: 'fixed',
-      top: '0',
-      left: '0',
-      width: '100%',
-      height: '100%',
-      background: 'rgba(0,0,0,0.8)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: '10001',
-    });
-
-    const modal = document.createElement('div');
-    applyStyles(modal, {
-      background: COLORS.cardDark,
-      borderRadius: UI.borderRadius.xl,
-      padding: UI.spacing.xl,
-      maxWidth: '300px',
-      textAlign: 'center',
-    });
-
-    const title = document.createElement('div');
-    title.textContent = i18n.t('shop.confirmPurchase');
-    applyStyles(title, {
-      fontSize: FONT_SIZES.lg,
-      fontWeight: '700',
-      color: COLORS.textPrimary,
-      marginBottom: UI.spacing.md,
-    });
-
-    const details = document.createElement('div');
-    details.innerHTML = `${pkg.icon} <strong>${pkg.amount + pkg.bonus}</strong> ${i18n.t('shop.orbs')}<br>
-      <span style="font-size: 24px; color: ${COLORS.orbPurple};">$${pkg.price.toFixed(2)}</span>`;
-    applyStyles(details, {
-      fontSize: FONT_SIZES.md,
-      color: COLORS.textSecondary,
-      marginBottom: UI.spacing.lg,
-    });
-
-    const buttonRow = document.createElement('div');
-    applyStyles(buttonRow, {
-      display: 'flex',
-      gap: UI.spacing.sm,
-    });
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = i18n.t('common.cancel');
-    applyStyles(cancelBtn, {
-      flex: '1',
-      padding: '12px',
-      border: 'none',
-      borderRadius: UI.borderRadius.md,
-      fontSize: FONT_SIZES.sm,
-      fontWeight: '600',
-      cursor: 'pointer',
-      background: 'rgba(255,255,255,0.1)',
-      color: COLORS.textSecondary,
-    });
-    cancelBtn.onclick = () => {
-      SoundEffects.playClick();
-      confirmOverlay.remove();
-    };
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.textContent = i18n.t('shop.buy');
-    applyStyles(confirmBtn, {
-      flex: '1',
-      padding: '12px',
-      border: 'none',
-      borderRadius: UI.borderRadius.md,
-      fontSize: FONT_SIZES.sm,
-      fontWeight: '700',
-      cursor: 'pointer',
-      background: COLORS.gradientPurple,
-      color: '#fff',
-    });
-    confirmBtn.onclick = () => {
-      SoundEffects.playClick();
-      
-      // Mock успешная покупка
-      const totalOrbs = pkg.amount + pkg.bonus;
-      orbsManager.addOrbs(totalOrbs);
-      
-      SoundEffects.playReward();
-      showToast(`+${totalOrbs} 🔮`);
-      updateBalance();
-      
-      confirmOverlay.remove();
-    };
-
-    buttonRow.appendChild(cancelBtn);
-    buttonRow.appendChild(confirmBtn);
-    modal.appendChild(title);
-    modal.appendChild(details);
-    modal.appendChild(buttonRow);
-    confirmOverlay.appendChild(modal);
-    document.body.appendChild(confirmOverlay);
-  }
-
   function renderItems() {
     itemsContainer.innerHTML = '';
-    
+
     // Отдельная обработка для вкладки Orbs (IAP)
     if (currentTab === 'orbs') {
       renderOrbPackages();
       return;
     }
-    
+
     const items = SHOP_ITEMS[currentTab];
 
     items.forEach(item => {
       const card = document.createElement('div');
-      
+
       // Определяем состояние
       let isOwned = false;
       let isEquipped = false;
@@ -745,12 +631,12 @@ export function showShop(onClose) {
 
       // Кнопка
       const btn = document.createElement('button');
-      
+
       if (isOwned && item.type !== 'consumable') {
         if (item.type === 'theme') {
           btn.textContent = isEquipped ? i18n.t('shop.equipped') : i18n.t('shop.owned');
           btn.disabled = isEquipped;
-          
+
           if (!isEquipped) {
             btn.onclick = () => {
               SoundEffects.playClick();
@@ -762,7 +648,7 @@ export function showShop(onClose) {
           btn.textContent = i18n.t('shop.owned');
           btn.disabled = true;
         }
-        
+
         applyStyles(btn, {
           background: isEquipped ? COLORS.orbPurple : 'rgba(255,255,255,0.2)',
           color: '#fff',
@@ -777,7 +663,7 @@ export function showShop(onClose) {
       } else {
         btn.innerHTML = `🔮 ${item.price}`;
         btn.disabled = !hasEnoughOrbs || !canBuy;
-        
+
         applyStyles(btn, {
           background: hasEnoughOrbs && canBuy ? COLORS.gradientPurple : 'rgba(255,255,255,0.1)',
           color: hasEnoughOrbs && canBuy ? '#fff' : COLORS.textSecondary,
@@ -791,10 +677,10 @@ export function showShop(onClose) {
 
         btn.onclick = () => {
           if (!hasEnoughOrbs || !canBuy) return;
-          
+
           SoundEffects.playClick();
           const result = shopManager.purchase(item);
-          
+
           if (result.success) {
             SoundEffects.playReward();
             showToast(i18n.t('shop.purchased'));

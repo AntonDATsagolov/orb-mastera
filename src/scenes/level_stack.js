@@ -7,6 +7,8 @@ import { showSettingsModal } from '../game/SettingsModal.js';
 import { showGameResult } from '../ui/GameResultScreen.js';
 import difficultyManager from '../core/DifficultyManager.js';
 import i18n, { t } from '../i18n/LanguageManager.js';
+import levelSystem, { GOAL_TYPES } from '../core/LevelSystem.js';
+import onboardingManager from '../core/OnboardingManager.js';
 
 // Типы фигур с цветами
 const SHAPES = [
@@ -39,7 +41,7 @@ class ClearEffect {
   constructor(cells, color) {
     this.particles = [];
     this.life = 1;
-    
+
     for (const cell of cells) {
       for (let i = 0; i < 6; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -144,6 +146,21 @@ function LevelStack(engine, opts = {}) {
   let totalSquaresCleared = 0; // Зоны 3×3
   let gameStartTime = Date.now();
 
+  // === СИСТЕМА УРОВНЕЙ ===
+  const levelId = localStorage.getItem('orb-masters-current-level');
+  const levelConfig = levelId ? levelSystem.getLevel('puzzle', levelId) : null;
+  const isLevelMode = !!levelConfig;
+
+  // Если играем уровень, используем его настройки
+  let levelTimeLimit = levelConfig?.timeLimit || null;
+  let levelGoal = levelConfig?.goal || null;
+  let levelDifficulty = levelConfig?.difficulty || null;
+  let levelTimer = levelTimeLimit ? levelTimeLimit * 1000 : 0;
+
+  // Применяем сложность уровня к игре
+  const difficultyMod = levelDifficulty?.intensity || 1.0;
+  const specialChanceMod = levelDifficulty?.speed || 1.0; // Больше скорость = меньше специальных
+
   // Визуальные эффекты
   const effects = [];
   const floatingTexts = [];
@@ -155,6 +172,8 @@ function LevelStack(engine, opts = {}) {
   // UI
   let paused = false;
   let gameOver = false;
+  let resultShown = false;
+  let gameOverTimeout = null;
   let pauseOverlay = null;
   let infoOverlay = null;
   let gameOverOverlay = null;
@@ -173,34 +192,22 @@ function LevelStack(engine, opts = {}) {
       shapeBag.push({ type: 'normal', idx: i });
       shapeBag.push({ type: 'normal', idx: i }); // Каждая фигура дважды
     }
-    
+
     // Адаптивная система специальных фигур
     const diffMod = difficultyManager.getModifier('blockPuzzle');
     // diffMod < 1 = сложно игроку, даём больше специальных
     // diffMod > 1 = легко игроку, меньше специальных
-    
-    const extraSpecialChance = diffMod < 0.8 ? 0.8 : diffMod < 1.0 ? 0.6 : 0.5;
-    
-    // Бомба - всегда минимум 2 штуки
-    shapeBag.push({ type: 'special', idx: 0 }); // bomb
-    shapeBag.push({ type: 'special', idx: 0 }); // bomb
-    
-    // Линии - всегда добавляем обе
-    shapeBag.push({ type: 'special', idx: 1 }); // lineH
-    shapeBag.push({ type: 'special', idx: 2 }); // lineV
-    
-    // Дополнительные специальные (адаптивно)
-    if (Math.random() < extraSpecialChance) {
-      shapeBag.push({ type: 'special', idx: Math.floor(Math.random() * 3) });
-    }
-    if (Math.random() < extraSpecialChance * 0.6) {
-      shapeBag.push({ type: 'special', idx: Math.floor(Math.random() * 3) });
-    }
-    // Если очень тяжело - ещё больше помощи
-    if (diffMod < 0.7 && Math.random() < 0.5) {
-      shapeBag.push({ type: 'special', idx: 0 }); // Ещё бомба
-    }
-    
+
+    // Применяем сложность уровня (если есть) - сложнее = меньше специальных
+    const levelMod = isLevelMode ? (2 - specialChanceMod) : 1; // speed 0.5 → 1.5, speed 1.5 → 0.5
+    const combinedMod = diffMod * levelMod;
+
+    // Одна гарантированная спецфигура на мешок; редкая вторая только
+    // при заметных затруднениях игрока.
+    shapeBag.push({ type: 'special', idx: Math.floor(Math.random() * 3) });
+    const extraSpecialChance = combinedMod < 0.75 ? 0.22 : combinedMod < 0.9 ? 0.10 : 0.025;
+    if (Math.random() < extraSpecialChance) shapeBag.push({ type: 'special', idx: Math.floor(Math.random() * 3) });
+
     // Fisher-Yates shuffle
     for (let i = shapeBag.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -211,7 +218,7 @@ function LevelStack(engine, opts = {}) {
   function getNextPiece() {
     if (shapeBag.length === 0) shuffleBag();
     const item = shapeBag.pop();
-    
+
     if (item.type === 'special') {
       const s = SPECIAL_SHAPES[item.idx];
       return {
@@ -295,26 +302,26 @@ function LevelStack(engine, opts = {}) {
 
     // Проверяем заполненные линии и зоны
     const cleared = checkAndClearLines();
-    
+
     // Начисляем очки за размещение
     let earnedPoints = filledCells * 2;
-    
+
     if (cleared.lines > 0 || cleared.squares > 0) {
       combo++;
       maxCombo = Math.max(maxCombo, combo);
-      
+
       // Бонус за линии
       const lineBonus = 100 * cleared.lines * cleared.lines;
       // Бонус за квадраты 3×3
       const squareBonus = 150 * cleared.squares;
       // Множитель комбо
       const comboMultiplier = Math.min(combo, 10);
-      
+
       earnedPoints += Math.round((lineBonus + squareBonus) * (1 + comboMultiplier * 0.2));
-      
+
       totalLinesCleared += cleared.lines;
       totalSquaresCleared += cleared.squares;
-      
+
       // Показываем текст комбо
       if (combo >= 2) {
         const centerX = gridX + (cols * cellSize) / 2;
@@ -327,7 +334,7 @@ function LevelStack(engine, opts = {}) {
     }
 
     score += earnedPoints;
-    
+
     // Показываем заработанные очки
     const textX = gridX + (c0 + p.w / 2) * cellSize;
     const textY = gridY + (r0 + p.h / 2) * cellSize;
@@ -346,7 +353,10 @@ function LevelStack(engine, opts = {}) {
 
     // Проверяем возможность хода
     if (!hasAnyValidMove()) {
-      setTimeout(() => {
+      clearTimeout(gameOverTimeout);
+      gameOverTimeout = setTimeout(() => {
+        gameOverTimeout = null;
+        if (hasAnyValidMove()) return;
         gameOver = true;
         showGameOver();
       }, 800);
@@ -357,7 +367,7 @@ function LevelStack(engine, opts = {}) {
 
   function handleSpecialEffect(effect, r, c) {
     const cellsToClear = [];
-    
+
     switch (effect) {
       case 'clear3x3':
         for (let dr = -1; dr <= 1; dr++) {
@@ -387,11 +397,11 @@ function LevelStack(engine, opts = {}) {
         y: gridY + cell.r * cellSize + cellSize / 2
       }));
       effects.push(new ClearEffect(effectCells, '#FFD700'));
-      
+
       for (const cell of cellsToClear) {
         grid[cell.r][cell.c] = 0;
       }
-      
+
       score += cellsToClear.length * 10;
       SoundEffects.playExplosion();
     }
@@ -435,19 +445,19 @@ function LevelStack(engine, opts = {}) {
 
     // Собираем все клетки для очистки
     const cellsToClear = new Set();
-    
+
     for (const r of fullRows) {
       for (let c = 0; c < cols; c++) {
         cellsToClear.add(`${r},${c}`);
       }
     }
-    
+
     for (const c of fullCols) {
       for (let r = 0; r < rows; r++) {
         cellsToClear.add(`${r},${c}`);
       }
     }
-    
+
     for (const sq of fullSquares) {
       for (let dr = 0; dr < 3; dr++) {
         for (let dc = 0; dc < 3; dc++) {
@@ -536,10 +546,10 @@ function LevelStack(engine, opts = {}) {
 
   function onPointerUp(e) {
     if (paused || gameOver || !drag.active) return;
-    
+
     const r = canvas.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
-    
+
     const piece = pieces[drag.idx];
     if (piece) {
       // Вычисляем позицию с учётом центра фигуры
@@ -577,6 +587,8 @@ function LevelStack(engine, opts = {}) {
   function togglePause() {
     if (gameOver) return;
     paused = !paused;
+    if (paused) AudioManager.pause();
+    else AudioManager.resume();
     if (pauseOverlay) {
       pauseOverlay.style.display = paused ? 'flex' : 'none';
     }
@@ -739,28 +751,127 @@ function LevelStack(engine, opts = {}) {
     gameOverOverlay.querySelector('#stack-to-menu').onclick = () => { SoundEffects.playClick(); engine.goTo('menu'); };
   }
 
+  // === Функции системы уровней ===
+  function getGoalProgress() {
+    if (!levelGoal) return 0;
+
+    switch (levelGoal.type) {
+      case GOAL_TYPES.SCORE:
+        return score;
+      case GOAL_TYPES.COLLECT:
+        return totalLinesCleared + totalSquaresCleared;
+      case GOAL_TYPES.COMBO:
+        return maxCombo;
+      case GOAL_TYPES.SURVIVE:
+        return Math.floor((levelTimeLimit * 1000 - levelTimer) / 1000);
+      case GOAL_TYPES.NO_DAMAGE:
+        return Math.floor((levelTimeLimit * 1000 - levelTimer) / 1000);
+      default:
+        return 0;
+    }
+  }
+
+  function checkLevelGoal() {
+    if (!levelGoal) return false;
+    const progress = getGoalProgress();
+    return progress >= levelGoal.target;
+  }
+
+  function calculateStars() {
+    if (!levelConfig || !levelConfig.stars) return 1;
+
+    const progress = getGoalProgress();
+    const { one, two, three } = levelConfig.stars;
+
+    if (progress >= three) return 3;
+    if (progress >= two) return 2;
+    if (progress >= one) return 1;
+    return 0;
+  }
+
   function showGameOver() {
+    if (resultShown) return;
+    resultShown = true;
+    // Записываем игру в онбординг
+    onboardingManager.recordGamePlayed('puzzle');
+
     // Используем новую универсальную систему результатов
     const playTime = Math.floor((Date.now() - gameStartTime) / 1000);
-    
-    showGameResult({
-      mode: 'blockPuzzle',
-      score: score,
-      bestScore: best,
-      stats: {
-        linesCleared: totalLinesCleared,
-        zonesCleared: totalSquaresCleared,
-        maxCombo: maxCombo
-      },
-      playTimeSeconds: playTime,
-      onRestart: () => { restartGame(); },
-      onMenu: () => { engine.goTo('menu'); }
-    });
-    
-    SoundEffects.playGameOver();
+    const isWin = isLevelMode ? checkLevelGoal() : false;
+
+    if (isLevelMode && isWin) {
+      // Завершение уровня с победой
+      const stars = calculateStars();
+      levelSystem.completeLevel('puzzle', levelId, stars);
+      SoundEffects.playBonus();
+
+      showGameResult({
+        mode: 'puzzle',
+        score: score,
+        combo: maxCombo,
+        stage: levelConfig.stage,
+        duration: playTime,
+        isPerfect: combo >= 5,
+        isWin: true,
+        isLevelMode: true,
+        levelId: levelId,
+        stars: stars,
+        levelReward: levelConfig.rewards?.orbs || 10,
+        engine: engine,
+        onRetry: () => { restartGame(); },
+        onHome: () => { engine.goTo('menu'); },
+        onNextLevel: () => {
+          const nextLevel = levelSystem.getNextLevel('puzzle');
+          if (nextLevel) {
+            localStorage.setItem('orb-masters-current-level', nextLevel.id);
+            engine.goTo('level_stack');
+          } else {
+            engine.goTo('menu');
+          }
+        }
+      });
+    } else if (isLevelMode) {
+      // Поражение в режиме уровня
+      SoundEffects.playGameOver();
+      const currentStage = parseInt(localStorage.getItem('orb-masters-current-stage')) || 1;
+
+      showGameResult({
+        mode: 'puzzle',
+        score: score,
+        combo: maxCombo,
+        stage: currentStage,
+        duration: playTime,
+        isPerfect: false,
+        isWin: false,
+        isLevelMode: true,
+        levelId: levelId,
+        engine: engine,
+        onRetry: () => { restartGame(); },
+        onHome: () => { engine.goTo('menu'); }
+      });
+    } else {
+      // Бесконечный режим
+      SoundEffects.playGameOver();
+      const currentStage = parseInt(localStorage.getItem('orb-masters-current-stage')) || 1;
+
+      showGameResult({
+        mode: 'puzzle',
+        score: score,
+        combo: maxCombo,
+        stage: currentStage,
+        duration: playTime,
+        isPerfect: combo >= 5,
+        isWin: score > 0,
+        engine: engine,
+        onRetry: () => { restartGame(); },
+        onHome: () => { engine.goTo('menu'); }
+      });
+    }
   }
 
   function restartGame() {
+    clearTimeout(gameOverTimeout);
+    gameOverTimeout = null;
     initGrid();
     shuffleBag();
     pieces = [];
@@ -772,11 +883,13 @@ function LevelStack(engine, opts = {}) {
     totalSquaresCleared = 0;
     selected = null;
     gameOver = false;
+    resultShown = false;
     paused = false;
     effects.length = 0;
     floatingTexts.length = 0;
     gameStartTime = Date.now();
-    
+    levelTimer = levelTimeLimit ? levelTimeLimit * 1000 : 0;
+
     if (pauseOverlay) pauseOverlay.style.display = 'none';
     if (gameOverOverlay) gameOverOverlay.style.display = 'none';
   }
@@ -817,7 +930,7 @@ function LevelStack(engine, opts = {}) {
           grad.addColorStop(1, shadeColor(cell.color, -20));
           ctx.fillStyle = grad;
           ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
-          
+
           // Блик
           ctx.fillStyle = 'rgba(255,255,255,0.2)';
           ctx.fillRect(x + 2, y + 2, cellSize - 4, 3);
@@ -867,11 +980,11 @@ function LevelStack(engine, opts = {}) {
       const size = slotSize * 0.6;
       const x = slotX + (slotSize - size) / 2;
       const y = slotY + (slotSize - size) / 2;
-      
+
       // Свечение
       ctx.shadowColor = piece.color;
       ctx.shadowBlur = 15;
-      
+
       // Фон с градиентом
       const grad = ctx.createRadialGradient(x + size/2, y + size/2, 0, x + size/2, y + size/2, size/2);
       grad.addColorStop(0, piece.color);
@@ -881,28 +994,28 @@ function LevelStack(engine, opts = {}) {
       ctx.beginPath();
       ctx.roundRect(x, y, size, size, 12);
       ctx.fill();
-      
+
       // Рамка
       ctx.strokeStyle = '#FFF';
       ctx.lineWidth = 2;
       ctx.stroke();
-      
+
       ctx.shadowBlur = 0;
-      
+
       // Большая иконка
       ctx.font = `${size * 0.5}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(piece.icon, x + size/2, y + size/2);
-      
+
       // Подпись эффекта
       ctx.font = 'bold 10px Arial';
       ctx.fillStyle = '#FFF';
-      const label = piece.effect === 'clear3x3' ? 'БОМБА' : 
-                    piece.effect === 'clearRow' ? 'РЯД' : 
+      const label = piece.effect === 'clear3x3' ? 'БОМБА' :
+                    piece.effect === 'clearRow' ? 'РЯД' :
                     piece.effect === 'clearCol' ? 'СТОЛБЕЦ' : '';
       ctx.fillText(label, slotX + slotSize/2, slotY + slotSize - 8);
-      
+
       ctx.restore();
       return;
     }
@@ -920,13 +1033,13 @@ function LevelStack(engine, opts = {}) {
         if (piece.shape[r][c]) {
           const x = offsetX + c * (s + gap);
           const y = offsetY + r * (s + gap);
-          
+
           const grad = ctx.createLinearGradient(x, y, x + s, y + s);
           grad.addColorStop(0, piece.color);
           grad.addColorStop(1, shadeColor(piece.color, -30));
           ctx.fillStyle = grad;
           ctx.fillRect(x, y, s, s);
-          
+
           // Блик
           ctx.fillStyle = 'rgba(255,255,255,0.3)';
           ctx.fillRect(x + 1, y + 1, s - 2, 2);
@@ -979,7 +1092,7 @@ function LevelStack(engine, opts = {}) {
         if (piece.shape[r][c]) {
           const x = drawX + c * cellSize + 2;
           const y = drawY + r * cellSize + 2;
-          
+
           ctx.fillStyle = piece.color;
           ctx.shadowColor = piece.color;
           ctx.shadowBlur = 10;
@@ -996,11 +1109,20 @@ function LevelStack(engine, opts = {}) {
     ctx.font = 'bold 28px Arial';
     ctx.textAlign = 'left';
     ctx.fillText(`${score}`, 12, 32);
-    
+
     // Рекорд под очками
     ctx.fillStyle = '#888';
     ctx.font = '16px Arial';
     ctx.fillText(`${i18n.t('game.best')}: ${best}`, 12, 52);
+
+    if (isLevelMode) {
+      ctx.fillStyle = '#b8c8e8';
+      ctx.font = '13px Arial';
+      ctx.fillText(`🎯 ${getGoalProgress()} / ${levelGoal.target}`, 12, 74);
+      ctx.textAlign = 'right';
+      ctx.fillText(`⏱ ${Math.ceil(levelTimer / 1000)}s`, W - 68, 24);
+      ctx.textAlign = 'left';
+    }
 
     // Комбо по центру сверху (не перекрывает паузу)
     if (combo >= 2) {
@@ -1015,7 +1137,7 @@ function LevelStack(engine, opts = {}) {
     ctx.beginPath();
     ctx.roundRect(W - 56, 8, 48, 48, 10);
     ctx.fill();
-    
+
     ctx.fillStyle = '#FFF';
     ctx.fillRect(W - 44, 18, 6, 28);
     ctx.fillRect(W - 32, 18, 6, 28);
@@ -1035,7 +1157,7 @@ function LevelStack(engine, opts = {}) {
     const r = canvas.getBoundingClientRect();
     const x = e.clientX - r.left;
     const y = e.clientY - r.top;
-    
+
     if (x >= W - 56 && x <= W - 8 && y >= 8 && y <= 56 && !gameOver) {
       SoundEffects.playClick();
       togglePause();
@@ -1068,6 +1190,15 @@ function LevelStack(engine, opts = {}) {
     update(dt) {
       if (paused || gameOver) return;
 
+      if (isLevelMode) {
+        levelTimer = Math.max(0, levelTimer - dt);
+        if (checkLevelGoal() || levelTimer === 0) {
+          gameOver = true;
+          showGameOver();
+          return;
+        }
+      }
+
       // Обновляем эффекты
       for (let i = effects.length - 1; i >= 0; i--) {
         if (!effects[i].update()) effects.splice(i, 1);
@@ -1089,11 +1220,11 @@ function LevelStack(engine, opts = {}) {
       drawGrid(ctx);
       drawPieces(ctx);
       drawDragging(ctx);
-      
+
       // Эффекты
       for (const effect of effects) effect.draw(ctx);
       for (const text of floatingTexts) text.draw(ctx);
-      
+
       drawHUD(ctx);
     },
 

@@ -20,7 +20,7 @@ const GEM_COLORS = {
 // Формы для каждого типа (для дальтоников)
 const GEM_SHAPES = {
   red: 'circle',      // ●  Круг
-  blue: 'diamond',    // ◆  Ромб  
+  blue: 'diamond',    // ◆  Ромб
   green: 'triangle',  // ▲  Треугольник
   yellow: 'star',     // ★  Звезда
   purple: 'hexagon',  // ⬡  Шестиугольник
@@ -47,7 +47,7 @@ class Effect {
     this.color = color;
     this.life = 1;
     this.particles = [];
-    
+
     const count = type === 'explosion' ? 16 : type === 'super_explosion' ? 24 : 8;
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2;
@@ -76,14 +76,14 @@ class Effect {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.globalAlpha = this.life;
-    
+
     for (const p of this.particles) {
       ctx.fillStyle = this.color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
     }
-    
+
     ctx.restore();
   }
 }
@@ -112,7 +112,7 @@ class LineEffect {
   draw(ctx) {
     ctx.save();
     ctx.globalAlpha = this.life;
-    
+
     const gradient = ctx.createLinearGradient(
       this.direction === 'horizontal' ? this.x - this.length / 2 : this.x,
       this.direction === 'vertical' ? this.y - this.length / 2 : this.y,
@@ -124,11 +124,11 @@ class LineEffect {
     gradient.addColorStop(0.5, '#FFFFFF');
     gradient.addColorStop(0.7, this.color);
     gradient.addColorStop(1, 'transparent');
-    
+
     ctx.strokeStyle = gradient;
     ctx.lineWidth = 8 * this.life;
     ctx.lineCap = 'round';
-    
+
     ctx.beginPath();
     if (this.direction === 'horizontal') {
       ctx.moveTo(this.x - this.length / 2, this.y);
@@ -138,7 +138,7 @@ class LineEffect {
       ctx.lineTo(this.x, this.y + this.length / 2);
     }
     ctx.stroke();
-    
+
     ctx.restore();
   }
 }
@@ -154,7 +154,7 @@ class ShatterEffect {
     this.shape = shape;
     this.life = 1;
     this.shards = [];
-    
+
     // Создаём осколки разной формы
     const count = 8 + Math.floor(Math.random() * 6);
     for (let i = 0; i < count; i++) {
@@ -190,13 +190,13 @@ class ShatterEffect {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.globalAlpha = this.life;
-    
+
     for (const s of this.shards) {
       ctx.save();
       ctx.translate(s.x, s.y);
       ctx.rotate(s.rotation);
       ctx.fillStyle = this.color;
-      
+
       ctx.beginPath();
       if (s.type === 0) {
         // Треугольник
@@ -215,10 +215,10 @@ class ShatterEffect {
       }
       ctx.closePath();
       ctx.fill();
-      
+
       ctx.restore();
     }
-    
+
     ctx.restore();
   }
 }
@@ -246,7 +246,7 @@ class FlashEffect {
   draw(ctx) {
     ctx.save();
     ctx.globalAlpha = this.life * 0.6;
-    
+
     if (this.type === 'radial') {
       // Расширяющееся кольцо
       const gradient = ctx.createRadialGradient(
@@ -257,12 +257,12 @@ class FlashEffect {
       gradient.addColorStop(0.5, this.color);
       gradient.addColorStop(0.7, '#FFFFFF');
       gradient.addColorStop(1, 'transparent');
-      
+
       ctx.fillStyle = gradient;
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
       ctx.fill();
-      
+
       // Центральная вспышка
       if (this.life > 0.7) {
         ctx.globalAlpha = (this.life - 0.7) * 3;
@@ -275,13 +275,13 @@ class FlashEffect {
       // Луч (горизонтальный или вертикальный)
       const length = this.radius * 2;
       const width = 20 * this.life;
-      
+
       ctx.strokeStyle = this.color;
       ctx.lineWidth = width;
       ctx.lineCap = 'round';
       ctx.shadowColor = this.color;
       ctx.shadowBlur = 20;
-      
+
       ctx.beginPath();
       if (this.type === 'horizontal') {
         ctx.moveTo(this.x - length, this.y);
@@ -291,7 +291,7 @@ class FlashEffect {
         ctx.lineTo(this.x, this.y + length);
       }
       ctx.stroke();
-      
+
       // Центральное свечение
       ctx.globalAlpha = this.life;
       ctx.fillStyle = '#FFFFFF';
@@ -299,7 +299,7 @@ class FlashEffect {
       ctx.arc(this.x, this.y, 15 * this.life, 0, Math.PI * 2);
       ctx.fill();
     }
-    
+
     ctx.restore();
   }
 }
@@ -319,23 +319,23 @@ class LightningEffect {
     this.active = delay <= 0;
     this.segments = [];
     this.impactTriggered = false;
-    
+
     // Генерируем ломаную линию молнии
     this.generateLightning();
   }
-  
+
   generateLightning() {
     const dx = this.endX - this.startX;
     const dy = this.endY - this.startY;
     const distance = Math.sqrt(dx * dx + dy * dy);
     const segmentCount = Math.max(4, Math.floor(distance / 25));
-    
+
     this.segments = [];
     for (let i = 0; i <= segmentCount; i++) {
       const t = i / segmentCount;
       let x = this.startX + dx * t;
       let y = this.startY + dy * t;
-      
+
       // Добавляем случайное смещение (кроме начала и конца)
       if (i > 0 && i < segmentCount) {
         const perpX = -dy / distance;
@@ -344,7 +344,7 @@ class LightningEffect {
         x += perpX * offset;
         y += perpY * offset;
       }
-      
+
       this.segments.push({ x, y });
     }
   }
@@ -358,23 +358,23 @@ class LightningEffect {
       }
       return true;
     }
-    
+
     this.life -= 0.06;
-    
+
     // Немного "дрожим" молнией
     if (this.life > 0.5 && Math.random() < 0.3) {
       this.generateLightning();
     }
-    
+
     return this.life > 0;
   }
 
   draw(ctx) {
     if (!this.active || this.segments.length < 2) return;
-    
+
     ctx.save();
     ctx.globalAlpha = this.life;
-    
+
     // Основная молния (широкая, размытая)
     ctx.strokeStyle = this.color;
     ctx.lineWidth = 6 * this.life;
@@ -382,45 +382,45 @@ class LightningEffect {
     ctx.lineJoin = 'round';
     ctx.shadowColor = this.color;
     ctx.shadowBlur = 15;
-    
+
     ctx.beginPath();
     ctx.moveTo(this.segments[0].x, this.segments[0].y);
     for (let i = 1; i < this.segments.length; i++) {
       ctx.lineTo(this.segments[i].x, this.segments[i].y);
     }
     ctx.stroke();
-    
+
     // Яркое ядро молнии (белое)
     ctx.strokeStyle = '#FFFFFF';
     ctx.lineWidth = 2 * this.life;
     ctx.shadowBlur = 5;
-    
+
     ctx.beginPath();
     ctx.moveTo(this.segments[0].x, this.segments[0].y);
     for (let i = 1; i < this.segments.length; i++) {
       ctx.lineTo(this.segments[i].x, this.segments[i].y);
     }
     ctx.stroke();
-    
+
     // Вспышка в точке удара
     if (this.life > 0.7) {
       const impactAlpha = (this.life - 0.7) * 3;
       ctx.globalAlpha = impactAlpha;
-      
+
       // Кольцо удара
       const impactRadius = 20 * (1 - impactAlpha);
       ctx.fillStyle = this.color;
       ctx.beginPath();
       ctx.arc(this.endX, this.endY, impactRadius + 5, 0, Math.PI * 2);
       ctx.fill();
-      
+
       // Белая вспышка
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
       ctx.arc(this.endX, this.endY, 10 * impactAlpha, 0, Math.PI * 2);
       ctx.fill();
     }
-    
+
     ctx.restore();
   }
 }
@@ -443,14 +443,14 @@ class Gem {
     this.isMatched = false;
     this.isNew = true;
     this.isRemoving = false;
-    
+
     // Новые свойства для анимаций
     this.isSelected = false;
     this.isSwapping = false;
     this.pulsePhase = Math.random() * Math.PI * 2; // Случайная фаза для мерцания
     this.bounceY = 0; // Для bounce-эффекта при приземлении
     this.rotation = 0; // Вращение при обмене
-    
+
     // Реакция на соседние кристаллы и живое поле
     this.pushX = 0; // Отталкивание по X (от соседа)
     this.pushY = 0; // Отталкивание по Y
@@ -463,46 +463,46 @@ class Gem {
   update(cellSize, gridX, gridY) {
     this.targetX = gridX + this.col * cellSize + cellSize / 2;
     this.targetY = gridY + this.row * cellSize + cellSize / 2;
-    
+
     // Улучшенное плавное движение с bounce-эффектом
     const speed = this.isSwapping ? 0.25 : 0.18; // Быстрее при обмене
     const dx = this.targetX - this.x;
     const dy = this.targetY - this.y;
-    
+
     this.x += dx * speed;
     this.y += dy * speed;
-    
+
     // Bounce-эффект при падении
     if (Math.abs(dy) > 2) {
       this.bounceY = dy * 0.1;
     } else {
       this.bounceY *= 0.8;
     }
-    
+
     // Вращение при обмене
     if (this.isSwapping) {
       this.rotation += 0.15;
     } else {
       this.rotation *= 0.85;
     }
-    
+
     // Пульсация фазы для idle-анимации
     this.pulsePhase += 0.05;
     this.idleFloatPhase += 0.03;
-    
+
     // Плавное затухание отталкивания
     this.pushX *= 0.85;
     this.pushY *= 0.85;
-    
+
     // Затухание hover эффекта
     this.hoverScale *= 0.9;
-    
+
     // Затухание wobble
     this.wobble *= 0.92;
-    
+
     // Затухание свечения
     this.glowIntensity *= 0.95;
-    
+
     // Анимация появления (более выраженная)
     if (this.isNew) {
       this.scale += (1.1 - this.scale) * 0.15;
@@ -511,7 +511,7 @@ class Gem {
         this.isNew = false;
       }
     }
-    
+
     // Анимация удаления
     if (this.isRemoving) {
       this.scale *= 0.85;
@@ -525,7 +525,7 @@ class Gem {
     this.pushX += dx;
     this.pushY += dy;
   }
-  
+
   // Применить волновой эффект
   applyWave(intensity) {
     this.wobble += intensity;
@@ -540,79 +540,79 @@ class Gem {
 
   draw(ctx, cellSize) {
     if (this.alpha <= 0.01) return;
-    
+
     // Для радужной бомбы используем специальный цвет
-    const colors = this.specialType === SPECIAL_TYPES.RAINBOW 
-      ? GEM_COLORS.rainbow 
+    const colors = this.specialType === SPECIAL_TYPES.RAINBOW
+      ? GEM_COLORS.rainbow
       : GEM_COLORS[this.type];
     const shape = GEM_SHAPES[this.type];
     if (!colors) return;
-    
+
     ctx.save();
     ctx.globalAlpha = this.alpha;
-    
+
     // Базовая позиция + отталкивание + лёгкое плавание в idle
     const idleFloat = Math.sin(this.idleFloatPhase) * 1.5; // Лёгкое вертикальное покачивание
     const wobbleOffset = Math.sin(this.pulsePhase * 2) * this.wobble * 3;
     ctx.translate(
-      this.x + this.pushX + wobbleOffset, 
+      this.x + this.pushX + wobbleOffset,
       this.y + this.bounceY + this.pushY + idleFloat
     );
-    
+
     // Вращение (при удалении или wobble)
     const wobbleRotation = Math.sin(this.pulsePhase * 3) * this.wobble * 0.1;
     if ((this.isRemoving && Math.abs(this.rotation) > 0.01) || Math.abs(wobbleRotation) > 0.001) {
       ctx.rotate(this.rotation + wobbleRotation);
     }
-    
+
     // Масштаб: базовый + выделение + hover + пульсация спецэлемента + легкое дыхание
     let finalScale = this.scale;
-    
+
     // Лёгкое "дыхание" для всех кристаллов
     const breathe = 1 + Math.sin(this.idleFloatPhase * 0.7) * 0.015;
     finalScale *= breathe;
-    
+
     // Hover эффект
     finalScale *= (1 + this.hoverScale * 0.15);
-    
+
     // Пульсация для спецэлементов
     if (this.specialType) {
       const specialPulse = 1 + Math.sin(this.pulsePhase * 2) * 0.06;
       finalScale *= specialPulse;
     }
-    
+
     // Выбранный кристалл
     if (this.isSelected) {
       finalScale *= 1.12 + Math.sin(this.pulsePhase * 4) * 0.04;
     }
-    
+
     ctx.scale(finalScale, finalScale);
-    
+
     const r = cellSize * 0.38;
-    
+
     // Тень под кристаллом (динамическая)
     const shadowScale = 1 + this.hoverScale * 0.3;
     ctx.fillStyle = `rgba(0, 0, 0, ${0.25 + this.hoverScale * 0.1})`;
     ctx.beginPath();
     ctx.ellipse(2 + this.pushX * 0.3, 4 + this.hoverScale * 5, r * 0.65 * shadowScale, r * 0.3 * shadowScale, 0, 0, Math.PI * 2);
     ctx.fill();
-    
+
     // Свечение: выбранный, спецэлемент, или волновой эффект
     const hasGlow = this.isSelected || this.specialType || this.glowIntensity > 0.05;
     if (hasGlow) {
       const baseAlpha = this.isSelected ? 0.35 : (this.specialType ? 0.25 : 0);
       const waveAlpha = this.glowIntensity * 0.4;
       const totalAlpha = Math.min(0.5, baseAlpha + waveAlpha);
-      
+
       const glowColor = this.specialType === SPECIAL_TYPES.RAINBOW ? '#FFFFFF' : colors.light;
-      
+
       // Пульсирующее свечение для спецэлементов
       let glowSize = r * 1.3;
       if (this.specialType) {
         glowSize *= 1 + Math.sin(this.pulsePhase * 2.5) * 0.1;
       }
       glowSize += this.glowIntensity * r * 0.3;
-      
+
       const glowGrad = ctx.createRadialGradient(0, 0, r * 0.5, 0, 0, glowSize);
       glowGrad.addColorStop(0, `rgba(255, 255, 255, ${totalAlpha})`);
       glowGrad.addColorStop(0.5, glowColor + Math.floor(totalAlpha * 180).toString(16).padStart(2, '0'));
@@ -622,14 +622,14 @@ class Gem {
       ctx.arc(0, 0, glowSize, 0, Math.PI * 2);
       ctx.fill();
     }
-    
+
     // Чёткий градиент без размытия
     const grad = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 0, 0, 0, r);
     grad.addColorStop(0, colors.light);
     grad.addColorStop(0.5, colors.main);
     grad.addColorStop(1, colors.dark);
     ctx.fillStyle = grad;
-    
+
     // Рисуем форму
     if (this.specialType === SPECIAL_TYPES.RAINBOW) {
       this.drawRainbowGem(ctx, r);
@@ -640,7 +640,7 @@ class Gem {
         this.drawSpecialIndicator(ctx, r);
       }
     }
-    
+
     ctx.restore();
   }
 
@@ -650,20 +650,20 @@ class Gem {
       case 'circle':
         ctx.arc(0, 0, r, 0, Math.PI * 2);
         break;
-        
+
       case 'diamond':
         ctx.moveTo(0, -r);
         ctx.lineTo(r, 0);
         ctx.lineTo(0, r);
         ctx.lineTo(-r, 0);
         break;
-        
+
       case 'triangle':
         ctx.moveTo(0, -r);
         ctx.lineTo(r * 0.866, r * 0.5);
         ctx.lineTo(-r * 0.866, r * 0.5);
         break;
-        
+
       case 'star':
         for (let i = 0; i < 5; i++) {
           const outerAngle = (i / 5) * Math.PI * 2 - Math.PI / 2;
@@ -677,7 +677,7 @@ class Gem {
           ctx.lineTo(innerX, innerY);
         }
         break;
-        
+
       case 'hexagon':
         for (let i = 0; i < 6; i++) {
           const angle = (i / 6) * Math.PI * 2 - Math.PI / 6;
@@ -687,7 +687,7 @@ class Gem {
           else ctx.lineTo(px, py);
         }
         break;
-        
+
       case 'square':
         const s = r * 0.85;
         ctx.rect(-s, -s, s * 2, s * 2);
@@ -695,36 +695,36 @@ class Gem {
     }
     ctx.closePath();
     ctx.fill();
-    
+
     // Улучшенный контур с глубиной
     ctx.strokeStyle = 'rgba(0,0,0,0.4)';
     ctx.lineWidth = 2.5;
     ctx.stroke();
-    
+
     // Внутренний контур (светлый)
     ctx.strokeStyle = 'rgba(255,255,255,0.15)';
     ctx.lineWidth = 1;
     ctx.stroke();
-    
+
     // Главный блик (верхний)
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.beginPath();
     ctx.ellipse(-r * 0.2, -r * 0.3, r * 0.3, r * 0.15, -Math.PI / 4, 0, Math.PI * 2);
     ctx.fill();
-    
+
     // Дополнительный маленький блик
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.beginPath();
     ctx.arc(-r * 0.35, -r * 0.15, r * 0.08, 0, Math.PI * 2);
     ctx.fill();
-    
+
     // Нижний отблеск (отражённый свет)
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
     ctx.beginPath();
     ctx.ellipse(r * 0.15, r * 0.35, r * 0.25, r * 0.1, Math.PI / 6, 0, Math.PI * 2);
     ctx.fill();
   }
-  
+
   // Вспомогательный метод для затемнения цвета
   darkenColor(hex, percent) {
     const num = parseInt(hex.replace('#', ''), 16);
@@ -739,7 +739,7 @@ class Gem {
     // Радужный шар с переливами
     const colors = ['#FF0000', '#FF8800', '#FFFF00', '#00FF00', '#0088FF', '#8800FF'];
     const time = performance.now() / 500;
-    
+
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2 + time;
       ctx.fillStyle = colors[i];
@@ -747,13 +747,13 @@ class Gem {
       ctx.arc(Math.cos(angle) * r * 0.25, Math.sin(angle) * r * 0.25, r * 0.45, 0, Math.PI * 2);
       ctx.fill();
     }
-    
+
     // Белый центр
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
     ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2);
     ctx.fill();
-    
+
     // Звезда
     ctx.fillStyle = '#FFD700';
     ctx.font = `bold ${r * 1.2}px Arial`;
@@ -766,7 +766,7 @@ class Gem {
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = '#FFFFFF';
     ctx.lineWidth = 3;
-    
+
     if (this.specialType === SPECIAL_TYPES.LINE_H) {
       // Горизонтальные стрелки
       ctx.beginPath();
@@ -817,40 +817,46 @@ class Gem {
  * Основной класс игры Match-3
  */
 export class Match3Game {
-  constructor(canvasWidth, canvasHeight) {
+  constructor(canvasWidth, canvasHeight, options = {}) {
     this.W = canvasWidth;
     this.H = canvasHeight;
-    
+
+    // Настройки сложности из уровня
+    this.options = options;
+    this.gemTypesCount = Math.min(6, Math.max(4, options.gemTypes || 6));
+
     // Размеры сетки
     this.rows = 8;
     this.cols = 8;
     this.grid = [];
-    
+
     // Расчёт размеров
     this.recalcLayout();
-    
+
     // Состояние
     this.score = 0;
-    this.moves = 30;
+    this.moves = options.moves || 30;
+    this.initialMoves = this.moves;
     this.combo = 0;
+    this.maxCombo = 0;
     this.state = 'idle'; // 'idle', 'swapping', 'matching', 'falling', 'gameover', 'dragging'
-    
+
     // Выбор и свайп
     this.selected = null;
     this.swapTarget = null;
     this.swapProgress = 0;
-    
+
     // Перетаскивание кристалла
     this.dragging = null; // { gem, startX, startY, originX, originY, row, col }
     this.dragOffset = { x: 0, y: 0 };
     this.hoveredGem = null; // Текущий кристалл под курсором
-    
+
     // Анимации и эффекты
     this.matchedGems = [];
     this.fallingGems = [];
     this.effects = [];
     this.comboText = null;
-    
+
     // Инициализация
     this.initGrid();
   }
@@ -870,6 +876,11 @@ export class Match3Game {
     this.recalcLayout();
   }
 
+  // Получить случайный тип кристалла (с учётом ограничения по сложности)
+  getRandomGemType() {
+    return GEM_TYPES[Math.floor(Math.random() * this.gemTypesCount)];
+  }
+
   initGrid() {
     this.grid = [];
     for (let r = 0; r < this.rows; r++) {
@@ -877,9 +888,9 @@ export class Match3Game {
       for (let c = 0; c < this.cols; c++) {
         let type;
         do {
-          type = GEM_TYPES[Math.floor(Math.random() * GEM_TYPES.length)];
+          type = this.getRandomGemType();
         } while (this.wouldMatch(r, c, type));
-        
+
         const gem = new Gem(type, r, c);
         gem.x = this.gridX + c * this.cellSize + this.cellSize / 2;
         gem.y = this.gridY + r * this.cellSize + this.cellSize / 2;
@@ -925,7 +936,7 @@ export class Match3Game {
       for (let c = 0; c < this.cols; c++) {
         const gem = this.grid[r][c];
         if (!gem) continue;
-        
+
         let distance;
         if (type === 'radial') {
           // Радиальная волна (от бомбы)
@@ -937,10 +948,10 @@ export class Match3Game {
           // Вертикальная волна
           distance = Math.abs(c - centerCol);
         }
-        
+
         // Сила волны уменьшается с расстоянием
         const waveStrength = Math.max(0, intensity * (1 - distance / 6));
-        
+
         if (waveStrength > 0.05) {
           // Задержка волны в зависимости от расстояния
           const delay = distance * 30; // мс
@@ -957,17 +968,17 @@ export class Match3Game {
   // Клик по ячейке
   handleClick(x, y) {
     if (this.state !== 'idle' || this.moves <= 0) return;
-    
+
     const cell = this.getGemAt(x, y);
     if (!cell || !cell.gem) return;
-    
+
     SoundEffects.playClick();
-    
+
     // Убираем выделение с предыдущего
     if (this.selected && this.selected.gem) {
       this.selected.gem.isSelected = false;
     }
-    
+
     if (!this.selected) {
       this.selected = cell;
       cell.gem.isSelected = true;
@@ -975,7 +986,7 @@ export class Match3Game {
       // Проверяем соседство
       const dr = Math.abs(cell.row - this.selected.row);
       const dc = Math.abs(cell.col - this.selected.col);
-      
+
       if ((dr === 1 && dc === 0) || (dr === 0 && dc === 1)) {
         this.swapTarget = cell;
         this.startSwap();
@@ -989,18 +1000,18 @@ export class Match3Game {
   // Hover-эффект при движении мыши (для десктопа)
   handleHover(x, y) {
     if (this.state !== 'idle') return;
-    
+
     const cell = this.getGemAt(x, y);
-    
+
     // Сбрасываем предыдущий hover
     if (this.hoveredGem && this.hoveredGem !== cell?.gem) {
       this.hoveredGem.hoverScale = 0;
     }
-    
+
     if (cell && cell.gem) {
       cell.gem.hoverScale = Math.max(cell.gem.hoverScale, 0.5);
       this.hoveredGem = cell.gem;
-      
+
       // Лёгкое свечение у соседей
       const neighbors = [
         this.grid[cell.row - 1]?.[cell.col],
@@ -1021,31 +1032,31 @@ export class Match3Game {
   // Свайп
   handleSwipe(startX, startY, endX, endY) {
     if (this.state !== 'idle' || this.moves <= 0) return;
-    
+
     const cell = this.getGemAt(startX, startY);
     if (!cell || !cell.gem) return;
-    
+
     const dx = endX - startX;
     const dy = endY - startY;
-    
+
     if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
-    
+
     let targetRow = cell.row;
     let targetCol = cell.col;
-    
+
     if (Math.abs(dx) > Math.abs(dy)) {
       targetCol += dx > 0 ? 1 : -1;
     } else {
       targetRow += dy > 0 ? 1 : -1;
     }
-    
-    if (targetRow >= 0 && targetRow < this.rows && 
+
+    if (targetRow >= 0 && targetRow < this.rows &&
         targetCol >= 0 && targetCol < this.cols) {
       this.selected = cell;
-      this.swapTarget = { 
-        row: targetRow, 
-        col: targetCol, 
-        gem: this.grid[targetRow][targetCol] 
+      this.swapTarget = {
+        row: targetRow,
+        col: targetCol,
+        gem: this.grid[targetRow][targetCol]
       };
       this.startSwap();
     }
@@ -1054,10 +1065,10 @@ export class Match3Game {
   // Начало перетаскивания (touch/mouse down)
   handleDragStart(x, y) {
     if (this.state !== 'idle' || this.moves <= 0) return;
-    
+
     const cell = this.getGemAt(x, y);
     if (!cell || !cell.gem) return;
-    
+
     // Сохраняем информацию о перетаскиваемом кристалле
     this.dragging = {
       gem: cell.gem,
@@ -1073,7 +1084,7 @@ export class Match3Game {
       lastMoveX: 0,
       lastMoveY: 0
     };
-    
+
     cell.gem.isSelected = true;
     this.state = 'dragging';
     SoundEffects.playClick();
@@ -1082,14 +1093,14 @@ export class Match3Game {
   // Перетаскивание (touch/mouse move)
   handleDragMove(x, y) {
     if (this.state !== 'dragging' || !this.dragging) return;
-    
+
     const gem = this.dragging.gem;
     const dx = x - this.dragging.startX;
     const dy = y - this.dragging.startY;
-    
+
     // Ограничиваем перетаскивание одной ячейкой
     const maxDrag = this.cellSize * 0.9;
-    
+
     // Определяем направление (только одно - либо горизонталь, либо вертикаль)
     let targetMoveX = 0, targetMoveY = 0;
     if (Math.abs(dx) > Math.abs(dy)) {
@@ -1097,48 +1108,48 @@ export class Match3Game {
     } else {
       targetMoveY = Math.max(-maxDrag, Math.min(maxDrag, dy));
     }
-    
+
     // === Сглаживание движения (убирает дёрганье) ===
     const smoothFactor = 0.3; // Чем меньше, тем плавнее (но медленнее отклик)
     this.dragging.lastMoveX += (targetMoveX - this.dragging.lastMoveX) * smoothFactor;
     this.dragging.lastMoveY += (targetMoveY - this.dragging.lastMoveY) * smoothFactor;
-    
+
     const smoothMoveX = this.dragging.lastMoveX;
     const smoothMoveY = this.dragging.lastMoveY;
-    
+
     // Применяем сглаженное движение к кристаллу
     gem.x = this.dragging.originX + smoothMoveX;
     gem.y = this.dragging.originY + smoothMoveY;
-    
+
     // === Целевой сосед ОБТЕКАЕТ схваченный кристалл по дуге ===
     const dragProgress = Math.max(Math.abs(smoothMoveX), Math.abs(smoothMoveY)) / maxDrag;
     const threshold = 0.15; // Порог для начала реакции соседа (раньше начинаем)
-    
+
     // Определяем направление к целевому соседу
     let targetRow = this.dragging.row;
     let targetCol = this.dragging.col;
     const isHorizontal = Math.abs(smoothMoveX) > Math.abs(smoothMoveY);
-    
+
     if (isHorizontal && Math.abs(smoothMoveX) > 5) {
       targetCol += smoothMoveX > 0 ? 1 : -1;
     } else if (Math.abs(smoothMoveY) > 5) {
       targetRow += smoothMoveY > 0 ? 1 : -1;
     }
-    
+
     // Сбрасываем предыдущего соседа если изменился
-    if (this.swapTarget?.gem && 
+    if (this.swapTarget?.gem &&
         (this.swapTarget.row !== targetRow || this.swapTarget.col !== targetCol)) {
       this.swapTarget.gem.isSelected = false;
       this.swapTarget.gem.pushX = 0;
       this.swapTarget.gem.pushY = 0;
       this.swapTarget = null;
     }
-    
+
     // Проверяем валидность целевого соседа
-    if (targetRow >= 0 && targetRow < this.rows && 
+    if (targetRow >= 0 && targetRow < this.rows &&
         targetCol >= 0 && targetCol < this.cols &&
         (targetRow !== this.dragging.row || targetCol !== this.dragging.col)) {
-      
+
       const targetGem = this.grid[targetRow][targetCol];
       if (targetGem) {
         // Устанавливаем как цель
@@ -1146,33 +1157,33 @@ export class Match3Game {
           this.swapTarget = { row: targetRow, col: targetCol, gem: targetGem };
           targetGem.isSelected = true;
         }
-        
+
         // === ОБТЕКАНИЕ ПО ДУГЕ ===
         if (dragProgress > threshold) {
           const moveProgress = (dragProgress - threshold) / (1 - threshold); // 0 to 1
-          
+
           // Позиция места схваченного кристалла (куда должен прийти сосед)
           const originX = this.dragging.originX;
           const originY = this.dragging.originY;
-          
+
           // Текущая "домашняя" позиция соседа
           const neighborHomeX = this.gridX + targetCol * this.cellSize + this.cellSize / 2;
           const neighborHomeY = this.gridY + targetRow * this.cellSize + this.cellSize / 2;
-          
+
           // Вектор от дома соседа к месту схваченного
           const toOriginX = originX - neighborHomeX;
           const toOriginY = originY - neighborHomeY;
-          
+
           // Дуга: сосед сначала отклоняется в сторону (перпендикулярно), потом идёт к цели
           // Используем синус для плавной дуги
           const arcPhase = moveProgress * Math.PI; // 0 → π
           const arcProgress = Math.sin(arcPhase); // 0 → 1 → 0 (выпуклость дуги)
           const linearProgress = (1 - Math.cos(arcPhase)) / 2; // 0 → 1 (прогресс к цели)
-          
+
           // Перпендикулярное смещение для дуги
           const arcOffset = this.cellSize * 0.3 * arcProgress;
           let perpX = 0, perpY = 0;
-          
+
           if (isHorizontal) {
             // Горизонтальный свап - дуга идёт вверх или вниз
             perpY = -arcOffset; // Всегда вверх (можно сделать случайным)
@@ -1180,12 +1191,12 @@ export class Match3Game {
             // Вертикальный свап - дуга идёт влево или вправо
             perpX = -arcOffset; // Всегда влево
           }
-          
+
           // Итоговое смещение: линейное движение к цели + перпендикулярная дуга
           targetGem.pushX = toOriginX * linearProgress * 0.85 + perpX;
           targetGem.pushY = toOriginY * linearProgress * 0.85 + perpY;
         }
-        
+
         targetGem.hoverScale = Math.max(targetGem.hoverScale, dragProgress * 0.4);
       }
     } else {
@@ -1206,36 +1217,36 @@ export class Match3Game {
       this.state = 'idle';
       return false; // Не было перетаскивания
     }
-    
+
     const gem = this.dragging.gem;
     gem.isSelected = false;
-    
+
     // Возвращаем кристалл на место (анимация сделает это плавно)
     gem.x = this.dragging.originX;
     gem.y = this.dragging.originY;
-    
+
     // Сбрасываем push у соседа (он вернётся на место плавно через затухание)
     if (this.swapTarget?.gem) {
       this.swapTarget.gem.pushX = 0;
       this.swapTarget.gem.pushY = 0;
     }
-    
+
     const dx = x - this.dragging.startX;
     const dy = y - this.dragging.startY;
     const threshold = this.cellSize * 0.35;
-    
+
     // Если достаточно протянули — делаем свап
     if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
       let targetRow = this.dragging.row;
       let targetCol = this.dragging.col;
-      
+
       if (Math.abs(dx) > Math.abs(dy)) {
         targetCol += dx > 0 ? 1 : -1;
       } else {
         targetRow += dy > 0 ? 1 : -1;
       }
-      
-      if (targetRow >= 0 && targetRow < this.rows && 
+
+      if (targetRow >= 0 && targetRow < this.rows &&
           targetCol >= 0 && targetCol < this.cols) {
         this.selected = { row: this.dragging.row, col: this.dragging.col, gem };
         const targetGem = this.grid[targetRow][targetCol];
@@ -1245,17 +1256,17 @@ export class Match3Game {
           targetGem.pushY = 0;
           targetGem.isSelected = false;
         }
-        this.swapTarget = { 
-          row: targetRow, 
-          col: targetCol, 
-          gem: targetGem 
+        this.swapTarget = {
+          row: targetRow,
+          col: targetCol,
+          gem: targetGem
         };
         this.dragging = null;
         this.startSwap();
         return true; // Был перетаскивание со свапом
       }
     }
-    
+
     // Сбрасываем
     if (this.swapTarget?.gem) {
       this.swapTarget.gem.isSelected = false;
@@ -1272,7 +1283,7 @@ export class Match3Game {
     if (!this.selected || !this.swapTarget) return;
     this.state = 'swapping';
     this.swapProgress = 0;
-    
+
     // Устанавливаем флаги анимации
     if (this.selected.gem) {
       this.selected.gem.isSwapping = true;
@@ -1281,7 +1292,7 @@ export class Match3Game {
     if (this.swapTarget.gem) {
       this.swapTarget.gem.isSwapping = true;
     }
-    
+
     SoundEffects.playLaunch();
   }
 
@@ -1289,15 +1300,15 @@ export class Match3Game {
   doSwap() {
     const gem1 = this.grid[this.selected.row][this.selected.col];
     const gem2 = this.grid[this.swapTarget.row][this.swapTarget.col];
-    
+
     // Сбрасываем флаги анимации
     if (gem1) gem1.isSwapping = false;
     if (gem2) gem2.isSwapping = false;
-    
+
     // Меняем в сетке
     this.grid[this.selected.row][this.selected.col] = gem2;
     this.grid[this.swapTarget.row][this.swapTarget.col] = gem1;
-    
+
     // Обновляем координаты
     gem1.row = this.swapTarget.row;
     gem1.col = this.swapTarget.col;
@@ -1309,19 +1320,19 @@ export class Match3Game {
   findMatches() {
     const horizontalMatches = [];
     const verticalMatches = [];
-    
+
     // Горизонтальные совпадения
     for (let r = 0; r < this.rows; r++) {
       let c = 0;
       while (c < this.cols) {
         const gem = this.grid[r][c];
         if (!gem) { c++; continue; }
-        
+
         let count = 1;
         while (c + count < this.cols && this.grid[r][c + count]?.type === gem.type) {
           count++;
         }
-        
+
         if (count >= 3) {
           const match = {
             cells: [],
@@ -1339,19 +1350,19 @@ export class Match3Game {
         c += Math.max(1, count);
       }
     }
-    
+
     // Вертикальные совпадения
     for (let c = 0; c < this.cols; c++) {
       let r = 0;
       while (r < this.rows) {
         const gem = this.grid[r][c];
         if (!gem) { r++; continue; }
-        
+
         let count = 1;
         while (r + count < this.rows && this.grid[r + count]?.[c]?.type === gem.type) {
           count++;
         }
-        
+
         if (count >= 3) {
           const match = {
             cells: [],
@@ -1369,26 +1380,26 @@ export class Match3Game {
         r += Math.max(1, count);
       }
     }
-    
+
     // Собираем все уникальные ячейки
     const matchedSet = new Set();
     const allMatches = [...horizontalMatches, ...verticalMatches];
-    
+
     for (const match of allMatches) {
       for (const cell of match.cells) {
         matchedSet.add(`${cell.row},${cell.col}`);
       }
     }
-    
+
     const matches = [];
     for (const key of matchedSet) {
       const [row, col] = key.split(',').map(Number);
       matches.push({ row, col });
     }
-    
+
     // Определяем спецэлементы для создания
     const specialsToCreate = this.determineSpecials(horizontalMatches, verticalMatches);
-    
+
     return { matches, specialsToCreate, allMatches };
   }
 
@@ -1396,12 +1407,12 @@ export class Match3Game {
   determineSpecials(horizontalMatches, verticalMatches) {
     const specials = [];
     const processedCells = new Set();
-    
+
     // Проверяем пересечения (L/T формы) - создают бомбы
     for (const hMatch of horizontalMatches) {
       for (const vMatch of verticalMatches) {
         if (hMatch.type !== vMatch.type) continue;
-        
+
         // Ищем пересечение
         for (const hCell of hMatch.cells) {
           for (const vCell of vMatch.cells) {
@@ -1421,7 +1432,7 @@ export class Match3Game {
         }
       }
     }
-    
+
     // Проверяем длинные матчи
     const allMatches = [...horizontalMatches, ...verticalMatches];
     for (const match of allMatches) {
@@ -1455,24 +1466,25 @@ export class Match3Game {
         }
       }
     }
-    
+
     return specials;
   }
 
   // Удаление совпавших с созданием спецэлементов
   removeMatches(matches, specialsToCreate = []) {
     this.combo++;
+    this.maxCombo = Math.max(this.maxCombo, this.combo);
     const points = matches.length * 10 * this.combo;
     this.score += points;
-    
+
     SoundEffects.playBreak();
-    
+
     // Создаём спецэлементы
     const specialPositions = new Set();
     for (const special of specialsToCreate) {
       const key = `${special.row},${special.col}`;
       specialPositions.add(key);
-      
+
       const gem = this.grid[special.row]?.[special.col];
       if (gem) {
         // Создаём новый гем с спецтипом вместо удаления
@@ -1482,35 +1494,35 @@ export class Match3Game {
         newGem.specialType = special.specialType;
         newGem.isNew = false;
         this.grid[special.row][special.col] = newGem;
-        
+
         // Эффект создания
         this.effects.push(new Effect(gem.x, gem.y, 'burst', '#FFFFFF'));
         SoundEffects.playBonus();
       }
     }
-    
+
     // Удаляем остальные совпавшие элементы
     for (const m of matches) {
       const key = `${m.row},${m.col}`;
       // Пропускаем, если здесь создаётся спецэлемент
       if (specialPositions.has(key)) continue;
-      
+
       const gem = this.grid[m.row]?.[m.col];
       if (gem) {
         // Если это спецэлемент - активируем его
         if (gem.specialType) {
           this.activateSpecial(gem);
         }
-        
+
         // Эффект рассыпания
         const color = GEM_COLORS[gem.type]?.main || '#FFFFFF';
         const shape = GEM_SHAPES[gem.type];
         this.effects.push(new ShatterEffect(gem.x, gem.y, color, shape));
-        
+
         this.grid[m.row][m.col] = null;
       }
     }
-    
+
     // Показываем комбо
     if (this.combo > 1) {
       this.comboText = {
@@ -1528,7 +1540,7 @@ export class Match3Game {
     const gemX = gem.x;
     const gemY = gem.y;
     const gemColor = GEM_COLORS[type]?.main || '#FFFFFF';
-    
+
     if (specialType === SPECIAL_TYPES.LINE_H) {
       // Уничтожаем всю строку
       for (let c = 0; c < this.cols; c++) {
@@ -1574,33 +1586,33 @@ export class Match3Game {
       // Уничтожаем все элементы случайного типа с эффектом молний!
       const targetType = GEM_TYPES[Math.floor(Math.random() * GEM_TYPES.length)];
       const targetColor = GEM_COLORS[targetType]?.main || '#FFFFFF';
-      
+
       // Собираем все целевые кристаллы
       const targets = [];
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const targetGem = this.grid[r][c];
           if (targetGem?.type === targetType) {
-            targets.push({ 
-              row: r, col: c, 
+            targets.push({
+              row: r, col: c,
               gem: targetGem,
-              x: targetGem.x, 
-              y: targetGem.y 
+              x: targetGem.x,
+              y: targetGem.y
             });
           }
         }
       }
-      
+
       // Создаём молнии с задержкой для каждой цели
       targets.forEach((target, index) => {
         const delay = index * 50; // Молнии летят последовательно
         this.effects.push(new LightningEffect(
-          gemX, gemY, 
-          target.x, target.y, 
-          targetColor, 
+          gemX, gemY,
+          target.x, target.y,
+          targetColor,
           delay
         ));
-        
+
         // Рассыпание кристалла происходит когда молния долетает
         setTimeout(() => {
           const targetGem = this.grid[target.row]?.[target.col];
@@ -1610,7 +1622,7 @@ export class Match3Game {
             const shape = GEM_SHAPES[targetGem.type];
             this.effects.push(new ShatterEffect(targetGem.x, targetGem.y, color, shape));
             this.score += 15;
-            
+
             // Если это спецэлемент - активируем
             if (targetGem.specialType) {
               this.activateSpecial(targetGem);
@@ -1618,42 +1630,42 @@ export class Match3Game {
           }
         }, delay + 100); // +100мс на полёт молнии
       });
-      
+
       // Супер-волна от радужной бомбы (после всех молний)
       setTimeout(() => {
         this.triggerWaveEffect(row, col, 1.5, 'radial');
       }, targets.length * 50);
-      
+
       // Начальная вспышка
       this.effects.push(new FlashEffect(gemX, gemY, '#FFD700', 'radial'));
       SoundEffects.playBonus();
-      
+
       // Rainbow обрабатывает уничтожение сам, очищаем cellsToDestroy
       cellsToDestroy.length = 0;
     }
-    
+
     // Уничтожаем найденные ячейки с эффектом рассыпания (для LINE/BOMB)
     const toActivate = []; // Сначала собираем спецэлементы для активации
-    
+
     for (const cell of cellsToDestroy) {
       const targetGem = this.grid[cell.row]?.[cell.col];
       if (targetGem) {
         // Сначала удаляем из сетки чтобы избежать рекурсии
         this.grid[cell.row][cell.col] = null;
-        
+
         const color = GEM_COLORS[targetGem.type]?.main || '#FFFFFF';
         const shape = GEM_SHAPES[targetGem.type];
         // Эффект рассыпания на осколки
         this.effects.push(new ShatterEffect(targetGem.x, targetGem.y, color, shape));
         this.score += 15;
-        
+
         // Если это тоже спецэлемент - добавляем в очередь активации
         if (targetGem.specialType) {
           toActivate.push(targetGem);
         }
       }
     }
-    
+
     // Теперь активируем спецэлементы (уже удалённые из сетки)
     for (const specialGem of toActivate) {
       this.activateSpecial(specialGem);
@@ -1666,17 +1678,17 @@ export class Match3Game {
     const type2 = gem2.specialType;
     const centerX = (gem1.x + gem2.x) / 2;
     const centerY = (gem1.y + gem2.y) / 2;
-    
+
     // Удаляем оба спецэлемента
     this.grid[gem1.row][gem1.col] = null;
     this.grid[gem2.row][gem2.col] = null;
-    
+
     // Супер эффект - вспышка + взрыв
     this.effects.push(new FlashEffect(centerX, centerY, '#FFD700', 'radial'));
     this.effects.push(new Effect(centerX, centerY, 'super_explosion', '#FFD700'));
-    
+
     const cellsToDestroy = new Set();
-    
+
     // RAINBOW + RAINBOW = уничтожает ВСЁ поле
     if (type1 === SPECIAL_TYPES.RAINBOW && type2 === SPECIAL_TYPES.RAINBOW) {
       for (let r = 0; r < this.rows; r++) {
@@ -1771,7 +1783,7 @@ export class Match3Game {
       SoundEffects.playExplosion();
       this.comboText = { text: '💣💣 СУПЕР БОМБА!', life: 1.2, y: this.H / 2 };
     }
-    
+
     // Уничтожаем все ячейки
     for (const key of cellsToDestroy) {
       const [r, c] = key.split(',').map(Number);
@@ -1790,7 +1802,7 @@ export class Match3Game {
     // Удаляем радужную бомбу
     this.effects.push(new Effect(rainbowGem.x, rainbowGem.y, 'super_explosion', '#FFD700'));
     this.grid[rainbowGem.row][rainbowGem.col] = null;
-    
+
     // Уничтожаем все элементы указанного типа
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
@@ -1803,7 +1815,7 @@ export class Match3Game {
         }
       }
     }
-    
+
     SoundEffects.playBonus();
     this.comboText = { text: '🌈 РАДУГА!', life: 1.2, y: this.H / 2 };
   }
@@ -1811,10 +1823,10 @@ export class Match3Game {
   // Падение кристаллов
   applyGravity() {
     let moved = false;
-    
+
     for (let c = 0; c < this.cols; c++) {
       let emptyRow = this.rows - 1;
-      
+
       for (let r = this.rows - 1; r >= 0; r--) {
         if (this.grid[r][c]) {
           if (r !== emptyRow) {
@@ -1826,10 +1838,10 @@ export class Match3Game {
           emptyRow--;
         }
       }
-      
+
       // Заполняем пустые сверху
       for (let r = emptyRow; r >= 0; r--) {
-        const type = GEM_TYPES[Math.floor(Math.random() * GEM_TYPES.length)];
+        const type = this.getRandomGemType();
         const gem = new Gem(type, r, c);
         gem.x = this.gridX + c * this.cellSize + this.cellSize / 2;
         gem.y = this.gridY - (emptyRow - r + 1) * this.cellSize;
@@ -1838,7 +1850,7 @@ export class Match3Game {
         moved = true;
       }
     }
-    
+
     return moved;
   }
 
@@ -1894,26 +1906,26 @@ export class Match3Game {
         }
       }
     }
-    
+
     // Обновление эффектов
     this.effects = this.effects.filter(e => e.update());
-    
+
     // Обновление комбо текста
     if (this.comboText) {
       this.comboText.life -= 0.02;
       this.comboText.y -= 0.5;
       if (this.comboText.life <= 0) this.comboText = null;
     }
-    
+
     if (this.state === 'swapping') {
       this.swapProgress += 0.08; // Замедлено
       if (this.swapProgress >= 1) {
         this.doSwap();
-        
+
         // Проверка комбинации спецэлементов
         const gem1 = this.grid[this.selected.row]?.[this.selected.col];
         const gem2 = this.grid[this.swapTarget.row]?.[this.swapTarget.col];
-        
+
         // Если оба спецэлементы - активируем комбинацию
         if (gem1?.specialType && gem2?.specialType) {
           this.moves--;
@@ -1924,7 +1936,7 @@ export class Match3Game {
           this.swapTarget = null;
           return;
         }
-        
+
         // Если один радужный, а другой обычный - активируем радужный на тип другого
         if (gem1?.specialType === SPECIAL_TYPES.RAINBOW && gem2 && !gem2.specialType) {
           this.moves--;
@@ -1944,7 +1956,7 @@ export class Match3Game {
           this.swapTarget = null;
           return;
         }
-        
+
         const result = this.findMatches();
         if (result.matches.length > 0) {
           this.moves--;
@@ -1957,7 +1969,7 @@ export class Match3Game {
           SoundEffects.playBounce();
           this.state = 'idle';
         }
-        
+
         this.selected = null;
         this.swapTarget = null;
       }
@@ -1970,7 +1982,7 @@ export class Match3Game {
       }
     } else if (this.state === 'falling') {
       this.applyGravity();
-      
+
       // Проверяем, все ли на месте
       let allSettled = true;
       for (let r = 0; r < this.rows; r++) {
@@ -1983,7 +1995,7 @@ export class Match3Game {
           }
         }
       }
-      
+
       if (allSettled) {
         const result = this.findMatches();
         if (result.matches.length > 0) {
@@ -2013,13 +2025,13 @@ export class Match3Game {
         if (this.grid[r][c]) gems.push(this.grid[r][c]);
       }
     }
-    
+
     // Fisher-Yates shuffle
     for (let i = gems.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [gems[i], gems[j]] = [gems[j], gems[i]];
     }
-    
+
     let idx = 0;
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
@@ -2035,37 +2047,37 @@ export class Match3Game {
     const padding = 8;
     const gridWidth = this.cellSize * this.cols;
     const gridHeight = this.cellSize * this.rows;
-    
+
     // Внешняя тень
     ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
     ctx.shadowBlur = 20;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 5;
-    
+
     // Фон сетки с градиентом
     const bgGrad = ctx.createLinearGradient(
-      this.gridX, this.gridY, 
+      this.gridX, this.gridY,
       this.gridX, this.gridY + gridHeight
     );
     bgGrad.addColorStop(0, 'rgba(30, 20, 60, 0.9)');
     bgGrad.addColorStop(0.5, 'rgba(20, 15, 50, 0.95)');
     bgGrad.addColorStop(1, 'rgba(15, 10, 40, 0.9)');
     ctx.fillStyle = bgGrad;
-    
+
     ctx.beginPath();
     ctx.roundRect(
-      this.gridX - padding, 
-      this.gridY - padding, 
-      gridWidth + padding * 2, 
+      this.gridX - padding,
+      this.gridY - padding,
+      gridWidth + padding * 2,
       gridHeight + padding * 2,
       16
     );
     ctx.fill();
-    
+
     // Сброс теней
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
-    
+
     // Внешняя рамка (свечение)
     const borderGrad = ctx.createLinearGradient(
       this.gridX, this.gridY,
@@ -2078,33 +2090,25 @@ export class Match3Game {
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.roundRect(
-      this.gridX - padding, 
-      this.gridY - padding, 
-      gridWidth + padding * 2, 
+      this.gridX - padding,
+      this.gridY - padding,
+      gridWidth + padding * 2,
       gridHeight + padding * 2,
       16
     );
     ctx.stroke();
-    
+
     // Ячейки с улучшенным стилем
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
         const x = this.gridX + c * this.cellSize;
         const y = this.gridY + r * this.cellSize;
         const isLight = (r + c) % 2 === 0;
-        
-        // Градиент для ячейки
-        const cellGrad = ctx.createLinearGradient(x, y, x, y + this.cellSize);
-        if (isLight) {
-          cellGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-          cellGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
-        } else {
-          cellGrad.addColorStop(0, 'rgba(0, 0, 0, 0.05)');
-          cellGrad.addColorStop(1, 'rgba(0, 0, 0, 0.12)');
-        }
-        ctx.fillStyle = cellGrad;
+
+        // Flat checker cells avoid 64 short-lived gradients on every animation frame.
+        ctx.fillStyle = isLight ? 'rgba(255, 255, 255, 0.055)' : 'rgba(0, 0, 0, 0.075)';
         ctx.fillRect(x + 1, y + 1, this.cellSize - 2, this.cellSize - 2);
-        
+
         // Выделение выбранной ячейки
         if (this.selected && this.selected.row === r && this.selected.col === c) {
           // Пульсирующая рамка
@@ -2112,7 +2116,7 @@ export class Match3Game {
           ctx.strokeStyle = `rgba(255, 255, 255, ${pulse})`;
           ctx.lineWidth = 3;
           ctx.strokeRect(x + 2, y + 2, this.cellSize - 4, this.cellSize - 4);
-          
+
           // Внутреннее свечение
           const glowGrad = ctx.createRadialGradient(
             x + this.cellSize/2, y + this.cellSize/2, 0,
@@ -2125,7 +2129,7 @@ export class Match3Game {
         }
       }
     }
-    
+
     // Кристаллы (кроме перетаскиваемого)
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
@@ -2135,7 +2139,7 @@ export class Match3Game {
         }
       }
     }
-    
+
     // Перетаскиваемый кристалл рисуем поверх всех
     if (this.dragging && this.dragging.gem) {
       ctx.save();
@@ -2146,12 +2150,12 @@ export class Match3Game {
       this.dragging.gem.draw(ctx, this.cellSize);
       ctx.restore();
     }
-    
+
     // Эффекты
     for (const effect of this.effects) {
       effect.draw(ctx);
     }
-    
+
     // UI
     this.drawUI(ctx);
   }
@@ -2163,13 +2167,13 @@ export class Match3Game {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(`${this.score}`, 12, 18);
-    
+
     // Ходы под очками
     const movesColor = this.moves <= 5 ? '#FF6666' : '#888';
     ctx.fillStyle = movesColor;
     ctx.font = '16px Arial';
     ctx.fillText(`${i18n.t('game.moves')}: ${this.moves}`, 12, 48);
-    
+
     // Комбо текст (анимированный) - по центру
     if (this.comboText) {
       ctx.save();
@@ -2181,18 +2185,18 @@ export class Match3Game {
       ctx.fillText(this.comboText.text, this.W / 2, this.comboText.y);
       ctx.restore();
     }
-    
+
     // Game Over
     if (this.state === 'gameover') {
       ctx.fillStyle = 'rgba(0,0,0,0.7)';
       ctx.fillRect(0, 0, this.W, this.H);
-      
+
       ctx.fillStyle = '#FFF';
       ctx.font = 'bold 42px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('ИГРА ОКОНЧЕНА', this.W / 2, this.H / 2 - 40);
-      
+
       ctx.font = 'bold 28px Arial';
       ctx.fillStyle = '#FFD700';
       ctx.fillText(`Очки: ${this.score}`, this.W / 2, this.H / 2 + 20);
@@ -2201,7 +2205,7 @@ export class Match3Game {
 
   reset() {
     this.score = 0;
-    this.moves = 30;
+    this.moves = this.initialMoves; // Используем начальное количество ходов
     this.combo = 0;
     this.state = 'idle'; // Важно: сбрасываем состояние в idle!
     this.selected = null;
@@ -2210,12 +2214,12 @@ export class Match3Game {
     this.effects = [];
     this.comboText = null;
     this.matchingDelay = 0;
-    
+
     // Сбрасываем drag состояние
     this.dragging = null;
     this.dragOffset = { x: 0, y: 0 };
     this.hoveredGem = null;
-    
+
     // Пересоздаём сетку
     this.initGrid();
   }

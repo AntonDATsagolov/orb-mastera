@@ -1,0 +1,8 @@
+dist/
+node_modules/
+local.properties
+*.keystore
+*.jks
+keystore.properties
+.DS_Store
+Thumbs.db

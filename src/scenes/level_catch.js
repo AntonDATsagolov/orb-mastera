@@ -9,6 +9,7 @@ import difficultyManager from '../core/DifficultyManager.js';
 import i18n, { t } from '../i18n/LanguageManager.js';
 import onboardingManager from '../core/OnboardingManager.js';
 import levelSystem, { GOAL_TYPES } from '../core/LevelSystem.js';
+import { shopManager, SHOP_ITEMS } from '../ui/Shop.js';
 
 // Типы падающих объектов
 const ITEM_TYPES = {
@@ -49,7 +50,7 @@ class CatchEffect {
     this.text = text;
     this.life = 1;
     this.particles = [];
-    
+
     // Создаём частицы
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2;
@@ -77,7 +78,7 @@ class CatchEffect {
   draw(ctx) {
     ctx.save();
     ctx.globalAlpha = this.life;
-    
+
     // Частицы
     ctx.translate(this.x, this.y + 30);
     for (const p of this.particles) {
@@ -87,7 +88,7 @@ class CatchEffect {
       ctx.fill();
     }
     ctx.translate(-this.x, -(this.y + 30));
-    
+
     // Текст
     if (this.text) {
       ctx.font = 'bold 24px Arial';
@@ -99,7 +100,7 @@ class CatchEffect {
       ctx.strokeText(this.text, this.x, this.y);
       ctx.fillText(this.text, this.x, this.y);
     }
-    
+
     ctx.restore();
   }
 }
@@ -114,7 +115,7 @@ function LevelCatch(engine, opts = {}) {
   const levelId = localStorage.getItem('orb-masters-current-level');
   const levelConfig = levelId ? levelSystem.getLevel('catch', levelId) : null;
   const isLevelMode = !!levelConfig;
-  
+
   // Если играем уровень, используем его настройки
   let levelTimeLimit = levelConfig?.timeLimit || null;
   let levelGoal = levelConfig?.goal || null;
@@ -131,20 +132,20 @@ function LevelCatch(engine, opts = {}) {
   let hudOverlay = document.createElement('div');
   hudOverlay.id = 'catch-hud';
   hudOverlay.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; pointer-events: none; z-index: 100; padding: 10px;';
-  
+
   // Добавляем цель уровня в HUD если это режим уровней
   const goalHtml = isLevelMode ? `
     <div id="catch-goal" style="color: #4CAF50; font-size: 14px; margin-top: 4px; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 8px;">
       <span id="goal-icon">🎯</span> <span id="goal-progress">0</span> / <span id="goal-target">${levelGoal?.target || 0}</span>
     </div>
   ` : '';
-  
+
   const timerHtml = isLevelMode && levelTimeLimit ? `
     <div id="catch-timer" style="color: #FFF; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
       ⏱️ ${levelTimeLimit}s
     </div>
   ` : '';
-  
+
   hudOverlay.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
       <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -183,27 +184,49 @@ function LevelCatch(engine, opts = {}) {
   let alive = true;
   let score = 0;
   let best = parseInt(localStorage.getItem('mbg-best') || '0', 10) || 0;
-  let lives = newPlayerMod.bombChance === 0 ? 5 : 3; // Больше жизней для новичков
+  let lives = 3;
   let initialLives = lives; // Для расчёта isPerfect
-  
+
   // Комбо система
   let combo = 0;
   let maxCombo = 0;
   let comboTimer = 0;
   const COMBO_TIMEOUT = 2000; // 2 секунды на продолжение комбо
-  
+
   // Сложность с учётом адаптивной системы и онбординга
   const difficultyMod = difficultyManager.getModifier('cashCatcher');
   // Используем сложность уровня если есть
   const baseDifficulty = levelDifficulty ? levelDifficulty.speed : 1;
   let difficulty = baseDifficulty * difficultyMod * newPlayerMod.speedMultiplier;
   let totalCaught = 0;
-  
+
   // Шанс бомб из уровня или дефолтный
   let bombChance = levelDifficulty?.bombChance ?? newPlayerMod.bombChance;
-  
+
+  // Магазин сейчас продаёт апгрейд ширины, но ещё не содержит отдельный
+  // каталог экипируемых корзин. Берём доступный апгрейд и безопасную базовую
+  // корзину вместо обращения к несуществующему API/каталогу.
+  const availableBaskets = SHOP_ITEMS.equipment?.baskets || [];
+  const equippedBasketId = shopManager.getEquippedBasket?.();
+  const basketConfig = availableBaskets.find(basket => basket.id === equippedBasketId) ||
+    availableBaskets[0] || {
+      size: shopManager.isPermanentOwned('bigger_basket') ? 'wide' : 'normal',
+      shape: 'rectangle',
+      color: '#8B5CF6',
+    };
+
+  // Модификаторы корзины по типу
+  const basketSizeMultiplier = {
+    'normal': 1.0,
+    'wide': 1.3,
+  }[basketConfig.size] || 1.0;
+
+  const basketShape = basketConfig.shape || 'rectangle';
+  const hasMagnetBasket = basketShape === 'magnet';
+  const hasBouncyBasket = basketShape === 'bouncy';
+
   // Корзина (шире для новичков)
-  const basketWidthMod = newPlayerMod.speedMultiplier < 1 ? 1.3 : 1;
+  const basketWidthMod = basketSizeMultiplier;
   const basket = {
     x: W / 2,
     y: H - 60,
@@ -211,7 +234,9 @@ function LevelCatch(engine, opts = {}) {
     baseW: Math.max(80, Math.min(140, W * 0.25)) * basketWidthMod,
     h: 30,
     targetX: W / 2,
-    ease: 0.15
+    ease: 0.15,
+    shape: basketShape,
+    color: basketConfig.color || '#8B5CF6'
   };
 
   // Падающие объекты
@@ -272,16 +297,16 @@ function LevelCatch(engine, opts = {}) {
   function applyPower(type) {
     const now = performance.now();
     const duration = type === 'shield' ? 10000 : 6000;
-    
+
     activePowers[type] = { expires: now + duration };
-    
+
     if (type === 'wide') {
       basket.w = basket.baseW * 1.5;
     }
-    
+
     updatePowerDisplay();
     SoundEffects.playBonus();
-    
+
     const names = {
       magnet: '🧲 МАГНИТ!',
       slow: '🐢 ЗАМЕДЛЕНИЕ!',
@@ -307,15 +332,15 @@ function LevelCatch(engine, opts = {}) {
   function spawn() {
     const now = performance.now();
     const r = Math.random();
-    
+
     // Вероятности с учётом сложности и онбординга для новичков
     const baseBombProb = Math.min(0.15, 0.02 + difficulty * 0.015);
-    const bombProb = baseBombProb * (newPlayerMod.bombChance / 0.15); // Меньше бомб для новичков
-    const powerProb = newPlayerMod.bombChance === 0 ? 0.15 : 0.08; // Больше бонусов для новичков
-    const goldProb = newPlayerMod.bombChance === 0 ? 0.06 : 0.03; // Больше золота для новичков
+    const bombProb = baseBombProb * (bombChance / 0.15);
+    const powerProb = 0.035;
+    const goldProb = 0.015;
     const diamondProb = 0.008;
     const billProb = 0.25;
-    
+
     let type;
     if (r < diamondProb) type = ITEM_TYPES.DIAMOND;
     else if (r < diamondProb + goldProb) type = ITEM_TYPES.GOLD;
@@ -326,15 +351,15 @@ function LevelCatch(engine, opts = {}) {
     else if (r < diamondProb + goldProb + powerProb + bombProb) type = ITEM_TYPES.BOMB;
     else if (r < diamondProb + goldProb + powerProb + bombProb + billProb) type = ITEM_TYPES.BILL;
     else type = ITEM_TYPES.COIN;
-    
-    const size = type === ITEM_TYPES.DIAMOND ? 28 : 
+
+    const size = type === ITEM_TYPES.DIAMOND ? 28 :
                  type === ITEM_TYPES.GOLD ? 26 :
                  type === ITEM_TYPES.BILL ? 22 :
                  type === ITEM_TYPES.BOMB ? 24 : 18;
-    
+
     let vy = 1.5 + Math.random() * 0.8 + difficulty * 0.2;
     if (hasPower('slow')) vy *= 0.5;
-    
+
     items.push({
       x: 30 + Math.random() * (W - 60),
       y: -size - 10,
@@ -350,12 +375,12 @@ function LevelCatch(engine, opts = {}) {
   function catchItem(item, index) {
     const visual = ITEM_VISUALS[item.type];
     const now = performance.now();
-    
+
     // Определяем очки и действие
     let points = 0;
     let isPower = false;
     let isBomb = item.type === ITEM_TYPES.BOMB;
-    
+
     switch (item.type) {
       case ITEM_TYPES.COIN: points = 1; break;
       case ITEM_TYPES.BILL: points = 3; break;
@@ -377,7 +402,7 @@ function LevelCatch(engine, opts = {}) {
         isPower = true;
         break;
     }
-    
+
     // Бомба
     if (isBomb) {
       lives--;
@@ -387,7 +412,7 @@ function LevelCatch(engine, opts = {}) {
       effects.push(new CatchEffect(item.x, item.y, '#FF4444', '💥'));
       SoundEffects.playExplosion();
       showMessage('💥 БОМБА!');
-      
+
       if (lives <= 0) {
         items.splice(index, 1);
         doGameOver();
@@ -396,7 +421,7 @@ function LevelCatch(engine, opts = {}) {
       items.splice(index, 1);
       return;
     }
-    
+
     // Бонус
     if (isPower) {
       const powerType = item.type.replace('power_', '').replace('POWER_', '');
@@ -405,30 +430,30 @@ function LevelCatch(engine, opts = {}) {
       items.splice(index, 1);
       return;
     }
-    
+
     // Обычный предмет - начисляем очки
     combo++;
     comboTimer = now;
     totalCaught++;
     maxCombo = Math.max(maxCombo, combo);
     itemsCollected++; // Для целей уровня
-    
+
     // Особые предметы для COLLECT_SPECIAL
     if (item.type === ITEM_TYPES.GOLD || item.type === ITEM_TYPES.DIAMOND) {
       specialItemsCollected++;
     }
-    
+
     // Применяем множители
     let multiplier = getComboMultiplier();
     if (hasPower('mult')) multiplier *= 2;
-    
+
     const earnedPoints = Math.round(points * multiplier);
     score += earnedPoints;
-    
+
     // Эффекты
     const text = earnedPoints > points ? `+${earnedPoints}` : `+${points}`;
     effects.push(new CatchEffect(item.x, item.y, visual?.color || '#FFF', text));
-    
+
     // Звуки
     if (item.type === ITEM_TYPES.DIAMOND) {
       SoundEffects.playBonus();
@@ -439,36 +464,36 @@ function LevelCatch(engine, opts = {}) {
     } else {
       SoundEffects.playBreak();
     }
-    
+
     // Обновляем сложность
     if (totalCaught % 10 === 0) {
       difficulty += 0.3;
     }
-    
+
     // Обновляем UI
     scoreEl.textContent = score;
     updateComboDisplay();
-    
+
     // Обновляем прогресс цели уровня
     updateGoalProgress();
-    
+
     // Проверяем достижение цели
     if (isLevelMode && checkGoalComplete()) {
       doLevelComplete();
       items.splice(index, 1);
       return;
     }
-    
+
     items.splice(index, 1);
   }
 
   function missItem(item, index) {
     // Пропуск ценного предмета сбрасывает комбо
-    if (item.type === ITEM_TYPES.COIN || item.type === ITEM_TYPES.BILL || 
+    if (item.type === ITEM_TYPES.COIN || item.type === ITEM_TYPES.BILL ||
         item.type === ITEM_TYPES.GOLD || item.type === ITEM_TYPES.DIAMOND) {
       combo = 0;
       updateComboDisplay();
-      
+
       // Потеря жизни только за пропуск золота/алмаза
       if (item.type === ITEM_TYPES.GOLD || item.type === ITEM_TYPES.DIAMOND) {
         lives--;
@@ -651,7 +676,7 @@ function LevelCatch(engine, opts = {}) {
     backBtn.style.cssText = 'padding: 12px 40px; font-size: 18px; cursor: pointer; background: linear-gradient(135deg, #666, #444); color: white; border: none; border-radius: 8px; margin-top: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);';
     backBtn.onclick = () => { SoundEffects.playClick(); hideInfo(); };
     infoOverlay.appendChild(backBtn);
-    
+
     container.appendChild(infoOverlay);
   }
 
@@ -669,16 +694,19 @@ function LevelCatch(engine, opts = {}) {
     if (isPaused || !alive) return;
     isPaused = true;
     running = false;
+    AudioManager.pause();
     pauseOverlay.style.display = 'flex';
   }
 
   function resumeGame() {
     isPaused = false;
     running = alive;
+    AudioManager.resume();
     pauseOverlay.style.display = 'none';
   }
 
   function restartGame() {
+    AudioManager.resume();
     score = 0;
     lives = initialLives;
     combo = 0;
@@ -694,12 +722,12 @@ function LevelCatch(engine, opts = {}) {
     running = true;
     isPaused = false;
     gameStartTime = Date.now(); // Сброс времени
-    
+
     scoreEl.textContent = '0';
     updateLivesDisplay();
     updateComboDisplay();
     updatePowerDisplay();
-    
+
     // Сброс UI уровня
     if (goalProgressEl) goalProgressEl.textContent = '0';
     if (goalEl) {
@@ -710,7 +738,7 @@ function LevelCatch(engine, opts = {}) {
       timerEl.textContent = `⏱️ ${levelTimeLimit}s`;
       timerEl.style.color = '#FFF';
     }
-    
+
     pauseOverlay.style.display = 'none';
     if (gameOverOverlay) gameOverOverlay.style.display = 'none';
   }
@@ -740,10 +768,10 @@ function LevelCatch(engine, opts = {}) {
   // === Функции для системы уровней ===
   function updateGoalProgress() {
     if (!isLevelMode || !goalProgressEl) return;
-    
+
     const progress = getGoalProgress();
     goalProgressEl.textContent = progress;
-    
+
     // Подсветка при приближении к цели
     const target = levelGoal.target;
     const percent = progress / target;
@@ -757,7 +785,7 @@ function LevelCatch(engine, opts = {}) {
 
   function getGoalProgress() {
     if (!levelGoal) return 0;
-    
+
     switch (levelGoal.type) {
       case GOAL_TYPES.SCORE:
         return score;
@@ -778,17 +806,27 @@ function LevelCatch(engine, opts = {}) {
 
   function checkGoalComplete() {
     if (!levelGoal) return false;
-    
+
     const progress = getGoalProgress();
     return progress >= levelGoal.target;
   }
 
   function calculateStars() {
     if (!levelConfig || !levelConfig.stars) return 1;
-    
+
+    // Для выживания и прохождения без урона основная цель — время,
+    // а дополнительные звёзды выдаются за набранные очки.
+    if (levelGoal?.type === GOAL_TYPES.SURVIVE || levelGoal?.type === GOAL_TYPES.NO_DAMAGE) {
+      if (!checkGoalComplete()) return 0;
+      const { two, three } = levelConfig.stars;
+      if (score >= three) return 3;
+      if (score >= two) return 2;
+      return 1;
+    }
+
     const progress = getGoalProgress();
     const { one, two, three } = levelConfig.stars;
-    
+
     if (progress >= three) return 3;
     if (progress >= two) return 2;
     if (progress >= one) return 1;
@@ -798,18 +836,18 @@ function LevelCatch(engine, opts = {}) {
   function doLevelComplete() {
     alive = false;
     running = false;
-    
+
     const stars = calculateStars();
     const duration = Math.floor((Date.now() - gameStartTime) / 1000);
-    
+
     // Сохраняем прогресс уровня
     levelSystem.completeLevel('catch', levelId, stars);
-    
+
     // Записываем игру в онбординг
     onboardingManager.recordGamePlayed('catch');
-    
+
     SoundEffects.playBonus();
-    
+
     // Показываем экран результатов с информацией об уровне
     showGameResult({
       mode: 'catch',
@@ -834,7 +872,7 @@ function LevelCatch(engine, opts = {}) {
         const nextLevel = levelSystem.getNextLevel('catch');
         if (nextLevel) {
           localStorage.setItem('orb-masters-current-level', nextLevel.id);
-          restartGame();
+          engine.goTo('level_catch');
         } else {
           engine.goTo('menu');
         }
@@ -845,16 +883,16 @@ function LevelCatch(engine, opts = {}) {
   function doGameOver() {
     alive = false;
     running = false;
-    
+
     best = Math.max(best, score);
     localStorage.setItem('mbg-best', String(best));
-    
+
     // Записываем игру в онбординг
     onboardingManager.recordGamePlayed('catch');
-    
+
     // Получаем текущий stage из localStorage (установлен MainMenu)
     const currentStage = parseInt(localStorage.getItem('orb-masters-current-stage')) || 1;
-    
+
     // Показываем новый экран результатов с Orbs
     showGameResult({
       mode: 'catch',
@@ -863,7 +901,11 @@ function LevelCatch(engine, opts = {}) {
       stage: currentStage,
       duration: Math.floor((Date.now() - gameStartTime) / 1000),
       isPerfect: lives === 3, // Не потерял ни одной жизни
-      isWin: score > 0,
+      // In level mode, a positive score is not enough: the configured goal must
+      // be completed before the result is treated as a win.
+      isWin: isLevelMode ? false : score > 0,
+      isLevelMode,
+      levelId: isLevelMode ? levelId : null,
       engine: engine,
       onRetry: () => {
         restartGame();
@@ -872,7 +914,7 @@ function LevelCatch(engine, opts = {}) {
         engine.goTo('menu');
       }
     });
-    
+
     SoundEffects.playGameOver();
   }
 
@@ -891,7 +933,7 @@ function LevelCatch(engine, opts = {}) {
     const r = canvas.getBoundingClientRect();
     const x = e.clientX - r.left;
     const y = e.clientY - r.top;
-    
+
     if (isPauseButtonClicked(x, y) && alive && !isPaused) {
       SoundEffects.playClick();
       pauseGame();
@@ -914,30 +956,94 @@ function LevelCatch(engine, opts = {}) {
 
   // === Рендеринг ===
   function drawBasket(ctx) {
-    const { x, y, w, h } = basket;
-    
+    const { x, y, w, h, shape, color } = basket;
+
     // Свечение при активных бонусах
     if (Object.keys(activePowers).length > 0) {
       ctx.shadowColor = '#FFD700';
       ctx.shadowBlur = 15;
     }
-    
-    // Основа корзины
-    const grad = ctx.createLinearGradient(x - w/2, y - h, x + w/2, y + h);
-    grad.addColorStop(0, 'rgba(255,220,150,0.9)');
-    grad.addColorStop(0.5, 'rgba(200,150,80,0.85)');
-    grad.addColorStop(1, 'rgba(150,100,50,0.9)');
-    
+
+    // Основа корзины - разные стили по типу
+    let grad;
+    if (shape === 'magnet') {
+      // Магнитная корзина - синяя с эффектом притяжения
+      grad = ctx.createLinearGradient(x - w/2, y - h, x + w/2, y + h);
+      grad.addColorStop(0, 'rgba(59, 130, 246, 0.95)');
+      grad.addColorStop(0.5, 'rgba(37, 99, 235, 0.9)');
+      grad.addColorStop(1, 'rgba(29, 78, 216, 0.95)');
+
+      // Эффект магнитного поля
+      ctx.save();
+      ctx.globalAlpha = 0.3 + 0.1 * Math.sin(performance.now() / 200);
+      ctx.strokeStyle = '#60A5FA';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.arc(x, y, w * 0.8, Math.PI, 0);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, w * 1.2, Math.PI, 0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    } else if (shape === 'bouncy') {
+      // Пружинная корзина - жёлтая с пружинками
+      grad = ctx.createLinearGradient(x - w/2, y - h, x + w/2, y + h);
+      grad.addColorStop(0, 'rgba(251, 191, 36, 0.95)');
+      grad.addColorStop(0.5, 'rgba(245, 158, 11, 0.9)');
+      grad.addColorStop(1, 'rgba(217, 119, 6, 0.95)');
+    } else if (shape === 'rectangle' && basket.baseW !== w) {
+      // Широкая корзина - зелёная
+      grad = ctx.createLinearGradient(x - w/2, y - h, x + w/2, y + h);
+      grad.addColorStop(0, `${color}E6`);
+      grad.addColorStop(0.5, `${color}D9`);
+      grad.addColorStop(1, `${color}E6`);
+    } else {
+      // Стандартная корзина
+      grad = ctx.createLinearGradient(x - w/2, y - h, x + w/2, y + h);
+      grad.addColorStop(0, 'rgba(255,220,150,0.9)');
+      grad.addColorStop(0.5, 'rgba(200,150,80,0.85)');
+      grad.addColorStop(1, 'rgba(150,100,50,0.9)');
+    }
+
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.roundRect(x - w/2, y - h/2, w, h, 8);
-    ctx.fill();
-    
+
+    // Разные формы
+    if (shape === 'bouncy') {
+      // Пружинная корзина с закруглённым верхом
+      ctx.roundRect(x - w/2, y - h/2, w, h, 12);
+      ctx.fill();
+
+      // Рисуем пружинки по бокам
+      ctx.strokeStyle = '#92400E';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        const py = y + h/2 + 4 + i * 6;
+        ctx.beginPath();
+        ctx.moveTo(x - w/2 + 5, py);
+        ctx.lineTo(x - w/2 + 10, py + 3);
+        ctx.lineTo(x - w/2 + 5, py + 6);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + w/2 - 5, py);
+        ctx.lineTo(x + w/2 - 10, py + 3);
+        ctx.lineTo(x + w/2 - 5, py + 6);
+        ctx.stroke();
+      }
+    } else {
+      ctx.roundRect(x - w/2, y - h/2, w, h, 8);
+      ctx.fill();
+    }
+
     // Обводка
-    ctx.strokeStyle = 'rgba(100,60,20,0.8)';
+    ctx.strokeStyle = shape === 'magnet' ? 'rgba(30, 64, 175, 0.8)'
+      : shape === 'bouncy' ? 'rgba(146, 64, 14, 0.8)'
+      : 'rgba(100,60,20,0.8)';
     ctx.lineWidth = 2;
     ctx.stroke();
-    
+
     // Щит индикатор
     if (hasPower('shield')) {
       ctx.strokeStyle = '#4CAF50';
@@ -946,17 +1052,30 @@ function LevelCatch(engine, opts = {}) {
       ctx.arc(x, y, w/2 + 10, 0, Math.PI * 2);
       ctx.stroke();
     }
-    
+
+    // Иконка для специальных корзин
+    if (shape === 'magnet') {
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🧲', x, y);
+    } else if (shape === 'bouncy') {
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🎾', x, y);
+    }
+
     ctx.shadowBlur = 0;
   }
 
   function drawItem(ctx, item) {
     const visual = ITEM_VISUALS[item.type] || ITEM_VISUALS.coin;
-    
+
     ctx.save();
     ctx.translate(item.x, item.y);
     ctx.rotate(item.rot);
-    
+
     // Свечение
     const glow = ctx.createRadialGradient(0, 0, item.size * 0.3, 0, 0, item.size * 1.5);
     glow.addColorStop(0, visual.glow + '40');
@@ -965,7 +1084,7 @@ function LevelCatch(engine, opts = {}) {
     ctx.beginPath();
     ctx.arc(0, 0, item.size * 1.5, 0, Math.PI * 2);
     ctx.fill();
-    
+
     // Основа
     const grad = ctx.createRadialGradient(-item.size * 0.3, -item.size * 0.3, 0, 0, 0, item.size);
     grad.addColorStop(0, '#FFFFFF');
@@ -975,7 +1094,7 @@ function LevelCatch(engine, opts = {}) {
     ctx.beginPath();
     ctx.arc(0, 0, item.size, 0, Math.PI * 2);
     ctx.fill();
-    
+
     // Иконка
     ctx.rotate(-item.rot); // Выравниваем иконку
     ctx.fillStyle = '#FFF';
@@ -983,7 +1102,7 @@ function LevelCatch(engine, opts = {}) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(visual.icon, 0, 2);
-    
+
     ctx.restore();
   }
 
@@ -992,7 +1111,7 @@ function LevelCatch(engine, opts = {}) {
     ctx.beginPath();
     ctx.roundRect(pauseBtnRect.x, pauseBtnRect.y, pauseBtnRect.width, pauseBtnRect.height, 10);
     ctx.fill();
-    
+
     ctx.fillStyle = '#FFF';
     const barW = 6, barH = 20, gap = 5;
     const startX = pauseBtnRect.x + (pauseBtnRect.width - barW * 2 - gap) / 2;
@@ -1014,7 +1133,7 @@ function LevelCatch(engine, opts = {}) {
 
     init() {
       score = 0;
-      lives = newPlayerMod.bombChance === 0 ? 5 : 3;
+      lives = 3;
       combo = 0;
       maxCombo = 0;
       difficulty = 1 * difficultyMod * newPlayerMod.speedMultiplier;
@@ -1027,7 +1146,7 @@ function LevelCatch(engine, opts = {}) {
       alive = true;
       gameStarted = false;
       hintTimer = 0;
-      
+
       scoreEl.textContent = '0';
       updateLivesDisplay();
       updateComboDisplay();
@@ -1054,22 +1173,22 @@ function LevelCatch(engine, opts = {}) {
 
     update(dt) {
       if (!running || !alive) return;
-      
+
       const now = performance.now();
-      
+
       // === ОБНОВЛЕНИЕ ТАЙМЕРА УРОВНЯ ===
       if (isLevelMode && levelTimeLimit && timerEl) {
         const elapsed = (Date.now() - gameStartTime) / 1000;
         const remaining = Math.max(0, levelTimeLimit - elapsed);
         timerEl.textContent = `⏱️ ${Math.ceil(remaining)}s`;
-        
+
         // Подсветка при малом времени
         if (remaining <= 10) {
           timerEl.style.color = '#FF4444';
         } else if (remaining <= 30) {
           timerEl.style.color = '#FFC107';
         }
-        
+
         // Время вышло
         if (remaining <= 0) {
           // Проверяем достигнута ли цель
@@ -1080,7 +1199,7 @@ function LevelCatch(engine, opts = {}) {
           }
           return;
         }
-        
+
         // Для цели SURVIVE — обновляем прогресс
         if (levelGoal?.type === GOAL_TYPES.SURVIVE) {
           updateGoalProgress();
@@ -1090,14 +1209,14 @@ function LevelCatch(engine, opts = {}) {
           }
         }
       }
-      
+
       // Спавн
       const spawnInterval = Math.max(300, spawnBase - difficulty * 50);
       if (now - lastSpawn > spawnInterval) {
         spawn();
         lastSpawn = now;
       }
-      
+
       // Подсказки для новичков
       if (newPlayerMod.showHints && gameStarted) {
         hintTimer += dt;
@@ -1106,57 +1225,78 @@ function LevelCatch(engine, opts = {}) {
           onboardingManager.showGameHint('catch-combo', 'top', 2500);
         }
       }
-      
+
       // Проверка таймаута комбо
       if (combo > 0 && now - comboTimer > COMBO_TIMEOUT) {
         combo = 0;
         updateComboDisplay();
       }
-      
+
       // Проверка истечения бонусов
       for (const [type, power] of Object.entries(activePowers)) {
         if (now > power.expires) {
           clearPower(type);
         }
       }
-      
+
       // Обновление предметов
       for (let i = items.length - 1; i >= 0; i--) {
         const item = items[i];
-        
-        // Эффект магнита
-        if (hasPower('magnet') && item.type !== ITEM_TYPES.BOMB) {
+
+        // Эффект магнита (power-up ИЛИ магнитная корзина)
+        if ((hasPower('magnet') || hasMagnetBasket) && item.type !== ITEM_TYPES.BOMB) {
           const dx = basket.x - item.x;
-          item.x += dx * 0.05;
+          const dy = basket.y - item.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          // Магнитная корзина работает на меньшем расстоянии
+          const magnetRange = hasMagnetBasket ? 150 : 999;
+          const magnetStrength = hasMagnetBasket ? 0.03 : 0.05;
+
+          if (dist < magnetRange) {
+            item.x += dx * magnetStrength;
+            // Только горизонтальное притяжение для магнитной корзины
+            if (hasPower('magnet')) {
+              item.y += dy * 0.02;
+            }
+          }
         }
-        
+
         // Замедление
         const slowFactor = hasPower('slow') ? 0.5 : 1;
         item.vy += 0.06 * slowFactor;
         item.y += item.vy * slowFactor;
         item.rot += item.spin;
-        
+
         // Блеск для редких предметов
         if (item.type === ITEM_TYPES.GOLD || item.type === ITEM_TYPES.DIAMOND) {
           item.sparkle = (item.sparkle + 0.1) % (Math.PI * 2);
         }
-        
+
         // Проверка поимки
         if (circleRect(item.x, item.y, item.size, basket.x - basket.w/2, basket.y - basket.h/2, basket.w, basket.h)) {
+          // Пружинная корзина - шанс подбросить предмет вверх
+          if (hasBouncyBasket && item.type !== ITEM_TYPES.BOMB && Math.random() < 0.3) {
+            item.vy = -Math.abs(item.vy) * 0.8 - 3; // Отскок вверх
+            item.y = basket.y - basket.h/2 - item.size - 5;
+            // Эффект отскока
+            effects.push(new CatchEffect(item.x, basket.y, '#FBBF24', '↑'));
+            continue;
+          }
           catchItem(item, i);
           continue;
         }
-        
+
         // Проверка пропуска
         if (item.y - item.size > H + 20) {
           if (missItem(item, i)) return;
         }
       }
-      
+
       // Движение корзины
       basket.x += (basket.targetX - basket.x) * basket.ease;
       basket.x = Math.max(basket.w/2, Math.min(W - basket.w/2, basket.x));
-      
+
       // Обновление эффектов
       for (let i = effects.length - 1; i >= 0; i--) {
         if (!effects[i].update()) {
@@ -1173,7 +1313,7 @@ function LevelCatch(engine, opts = {}) {
       bg.addColorStop(1, '#3949ab');
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, W, H);
-      
+
       // Звёзды на фоне
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
       for (let i = 0; i < 30; i++) {
@@ -1183,20 +1323,20 @@ function LevelCatch(engine, opts = {}) {
         ctx.arc(sx, sy, 1 + (i % 2), 0, Math.PI * 2);
         ctx.fill();
       }
-      
+
       // Предметы
       for (const item of items) {
         drawItem(ctx, item);
       }
-      
+
       // Корзина
       drawBasket(ctx);
-      
+
       // Эффекты
       for (const effect of effects) {
         effect.draw(ctx);
       }
-      
+
       // Кнопка паузы
       if (alive) {
         drawPauseButton(ctx);
@@ -1210,7 +1350,7 @@ function LevelCatch(engine, opts = {}) {
       window.removeEventListener('mousemove', onPointerMove);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('languageChanged', onLanguageChanged);
-      
+
       if (hudOverlay) hudOverlay.remove();
       if (pauseOverlay) pauseOverlay.remove();
       if (infoOverlay) infoOverlay.remove();

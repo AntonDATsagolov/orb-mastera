@@ -96,29 +96,30 @@ class DifficultyManager {
     }
     
     const recentGames = modeData.history.slice(-5);
+    if (recentGames.length < 3) {
+      modeData.modifier = 1.0;
+      return;
+    }
     const quickLosses = recentGames.filter(g => g.quickLoss).length;
     const totalGames = recentGames.length;
     
     // Соотношение быстрых проигрышей
     const lossRatio = quickLosses / totalGames;
     
-    // Модификатор:
-    // 0% проигрышей = 1.1 (чуть сложнее)
-    // 20% = 1.0 (нормально)
-    // 40% = 0.9 (легче)
-    // 60%+ = 0.75 (намного легче)
-    // 80%+ = 0.6 (очень легко)
+    // Модификатор меняется постепенно и только после трёх игр:
+    // 0% быстрых проигрышей = 1.05, 20% = 1.0, 40% = 0.92,
+    // 60% = 0.85, 80%+ = 0.78.
     
     if (lossRatio >= 0.8) {
-      modeData.modifier = 0.6;
+      modeData.modifier = 0.78;
     } else if (lossRatio >= 0.6) {
-      modeData.modifier = 0.75;
+      modeData.modifier = 0.85;
     } else if (lossRatio >= 0.4) {
-      modeData.modifier = 0.9;
+      modeData.modifier = 0.92;
     } else if (lossRatio >= 0.2) {
       modeData.modifier = 1.0;
     } else {
-      modeData.modifier = 1.1;
+      modeData.modifier = 1.05;
     }
   }
 
@@ -127,7 +128,7 @@ class DifficultyManager {
    * @returns {number} - Множитель (< 1 = легче, > 1 = сложнее)
    */
   getModifier(mode) {
-    return this.data[mode]?.modifier || 1.0;
+    return Math.max(0.78, Math.min(1.05, this.data[mode]?.modifier || 1.0));
   }
 
   /**
@@ -188,3 +189,4 @@ class DifficultyManager {
 // Singleton
 const difficultyManager = new DifficultyManager();
 export default difficultyManager;
+export { DifficultyManager };

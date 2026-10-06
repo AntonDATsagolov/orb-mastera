@@ -10,6 +10,9 @@ import { AudioManager } from '../game/AudioManager.js';
 import { SoundEffects } from '../game/SoundEffects.js';
 import { showSettingsModal } from '../game/SettingsModal.js';
 import { showGameResult } from '../ui/GameResultScreen.js';
+import levelSystem, { GOAL_TYPES } from '../core/LevelSystem.js';
+import onboardingManager from '../core/OnboardingManager.js';
+import difficultyManager from '../core/DifficultyManager.js';
 import i18n, { t } from '../i18n/LanguageManager.js';
 
 /**
@@ -55,7 +58,9 @@ function LevelKnockout(engine, opts = {}) {
   // ===== GAME STATE =====
   let gameState = 'aiming'; // 'aiming', 'shooting', 'paused', 'gameOver'
   let previousState = 'aiming'; // для возврата из паузы
-  let ballCount = 10;
+  const adaptiveDifficulty = difficultyManager.getModifier('bricksBreaker');
+  const startingBallCount = adaptiveDifficulty < 0.9 ? 10 : adaptiveDifficulty > 1.02 ? 8 : 9;
+  let ballCount = startingBallCount;
   let launchPos = { x: W / 2, y: H - 50 };
   let nextLaunchX = W / 2;
   let firstLandedX = null;
@@ -65,7 +70,7 @@ function LevelKnockout(engine, opts = {}) {
   const gameOverLine = H - 80;
   const landingLine = H - 50;
   let downBtnPressed = false;
-  
+
   // ===== COMBO & SCORE SYSTEM =====
   let score = 0;
   let best = parseInt(localStorage.getItem('mbg-bricks-best') || '0', 10);
@@ -75,13 +80,44 @@ function LevelKnockout(engine, opts = {}) {
   let totalBlocksDestroyed = 0;
   let perfectTurns = 0;       // Ходы где уничтожено 3+ блоков
   const floatingTexts = [];   // Всплывающие тексты
-  
+
+  // Bricks uses the same level flow as the other modes.
+  const levelId = localStorage.getItem('orb-masters-current-level');
+  const levelConfig = levelId ? levelSystem.getLevel('bricks', levelId) : null;
+  const isLevelMode = Boolean(levelConfig);
+  let levelElapsed = 0;
+
+  function getLevelProgress() {
+    if (!levelConfig) return 0;
+    switch (levelConfig.goal.type) {
+      case GOAL_TYPES.SCORE: return score;
+      case GOAL_TYPES.COLLECT: return totalBlocksDestroyed;
+      case GOAL_TYPES.COMBO: return maxCombo;
+      case GOAL_TYPES.SURVIVE: return Math.floor(levelElapsed);
+      default: return 0;
+    }
+  }
+
+  function isLevelGoalComplete() {
+    return Boolean(levelConfig && getLevelProgress() >= levelConfig.goal.target);
+  }
+
+  function calculateLevelStars() {
+    const progress = getLevelProgress();
+    const thresholds = levelConfig?.stars;
+    if (!thresholds) return 1;
+    if (progress >= thresholds.three) return 3;
+    if (progress >= thresholds.two) return 2;
+    return progress >= thresholds.one ? 1 : 0;
+  }
+
   // Кнопка паузы справа вверху (стандартная позиция для всех уровней)
   const pauseBtnRect = { x: W - 56, y: 8, width: 48, height: 48 };
 
   // ===== MANAGERS =====
   const ballManager = new BallManager();
   const blockManager = new BlockManager(W, H);
+  blockManager.setPlayerBallCount(ballCount);
   const physics = new Physics(W, H);
   const renderer = new Renderer(W, H);
 
@@ -293,32 +329,49 @@ function LevelKnockout(engine, opts = {}) {
 
   function showGameOver() {
     SoundEffects.playGameOver();
-    
+
     // Обновляем рекорд
     if (score > best) {
       best = score;
       localStorage.setItem('mbg-bricks-best', String(best));
     }
-    
+
     // Получаем текущий stage
     const currentStage = parseInt(localStorage.getItem('orb-masters-current-stage')) || 1;
-    
+    const duration = Math.floor(levelElapsed);
+    const isWin = isLevelMode ? isLevelGoalComplete() : totalBlocksDestroyed > 0;
+
+    if (isLevelMode) onboardingManager.recordGamePlayed('bricks');
+    if (isLevelMode && isWin) {
+      levelSystem.completeLevel('bricks', levelId, calculateLevelStars(), score);
+    }
+
     // Показываем новый экран результатов с Orbs
     showGameResult({
       mode: 'bricks',
       score: score,
       combo: maxCombo,
-      stage: currentStage,
-      duration: Math.floor((Date.now() - gameStartTime) / 1000),
+      stage: levelConfig?.stage || currentStage,
+      duration: duration || Math.floor((Date.now() - gameStartTime) / 1000),
       isPerfect: perfectTurns > 0, // Были идеальные ходы
-      isWin: totalBlocksDestroyed > 0,
+      isWin,
+      isLevelMode,
+      levelId: isLevelMode ? levelId : null,
+      stars: isLevelMode && isWin ? calculateLevelStars() : 0,
+      levelReward: isLevelMode && isWin ? (levelConfig.rewards?.orbs || 10) : 0,
       engine: engine,
       onRetry: () => {
         restartGame();
       },
       onHome: () => {
         engine.goTo('menu');
-      }
+      },
+      onNextLevel: () => {
+        const nextLevel = levelSystem.getNextLevel('bricks');
+        if (!nextLevel) return engine.goTo('menu');
+        localStorage.setItem('orb-masters-current-level', nextLevel.id);
+        engine.goTo('level_knockout');
+      },
     });
   }
 
@@ -327,17 +380,19 @@ function LevelKnockout(engine, opts = {}) {
 
   function restartGame() {
     // Сброс всего состояния
+    AudioManager.resume();
     ballManager.clear();
     blockManager.clear();
+    ballCount = startingBallCount;
+    blockManager.setPlayerBallCount(ballCount);
     blockManager.initLevel();
     gameState = 'aiming';
-    ballCount = 10;
     launchPos = { x: W / 2, y: H - 50 };
     nextLaunchX = W / 2;
     firstLandedX = null;
     landedBallsCount = 0;
     downBtnPressed = false;
-    
+
     // Сброс очков и комбо
     score = 0;
     hitCombo = 0;
@@ -354,12 +409,14 @@ function LevelKnockout(engine, opts = {}) {
     SoundEffects.playClick();
     previousState = gameState;
     gameState = 'paused';
+    AudioManager.pause();
     if (pauseOverlay) pauseOverlay.style.display = 'flex';
   }
 
   function resumeGame() {
     if (gameState !== 'paused') return;
     gameState = previousState;
+    AudioManager.resume();
     if (pauseOverlay) pauseOverlay.style.display = 'none';
   }
 
@@ -370,13 +427,13 @@ function LevelKnockout(engine, opts = {}) {
 
   function drawPauseButton(ctx) {
     if (gameState === 'gameOver' || gameState === 'paused') return;
-    
+
     ctx.save();
     const btn = pauseBtnRect;
-    
+
     // Простой полупрозрачный фон (без градиента для производительности)
     ctx.fillStyle = 'rgba(80, 80, 100, 0.85)';
-    
+
     // Скруглённый прямоугольник
     const r = 10;
     ctx.beginPath();
@@ -391,29 +448,29 @@ function LevelKnockout(engine, opts = {}) {
     ctx.quadraticCurveTo(btn.x, btn.y, btn.x + r, btn.y);
     ctx.closePath();
     ctx.fill();
-    
+
     // Рамка
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 2;
     ctx.stroke();
-    
+
     // Иконка паузы (две вертикальные полоски) - увеличена
     const cx = btn.x + btn.width / 2;
     const cy = btn.y + btn.height / 2;
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(cx - 10, cy - 12, 7, 24);
     ctx.fillRect(cx + 3, cy - 12, 7, 24);
-    
+
     ctx.restore();
   }
 
   // ===== INPUT HANDLERS =====
-  
+
   // Получение координат из события (mouse или touch)
   function getEventCoords(e) {
     const rect = canvas.getBoundingClientRect();
     let clientX, clientY;
-    
+
     if (e.touches && e.touches.length > 0) {
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
@@ -424,7 +481,7 @@ function LevelKnockout(engine, opts = {}) {
       clientX = e.clientX;
       clientY = e.clientY;
     }
-    
+
     return {
       x: (clientX - rect.left) * (W / rect.width),
       y: (clientY - rect.top) * (H / rect.height)
@@ -491,7 +548,7 @@ function LevelKnockout(engine, opts = {}) {
     canvas.addEventListener('mousedown', onPointerDown);
     canvas.addEventListener('mousemove', onPointerMove);
     canvas.addEventListener('mouseup', onPointerUp);
-    
+
     // Touch events для мобильных
     canvas.addEventListener('touchstart', onPointerDown, { passive: false });
     canvas.addEventListener('touchmove', onPointerMove, { passive: false });
@@ -503,7 +560,7 @@ function LevelKnockout(engine, opts = {}) {
     canvas.removeEventListener('mousedown', onPointerDown);
     canvas.removeEventListener('mousemove', onPointerMove);
     canvas.removeEventListener('mouseup', onPointerUp);
-    
+
     canvas.removeEventListener('touchstart', onPointerDown);
     canvas.removeEventListener('touchmove', onPointerMove);
     canvas.removeEventListener('touchend', onPointerUp);
@@ -524,20 +581,21 @@ function LevelKnockout(engine, opts = {}) {
     init() {
       // Запускаем музыку уровня 2
       AudioManager.playTrack('level2');
-      
+
       ballManager.clear();
       blockManager.clear();
+      ballCount = startingBallCount;
+      blockManager.setPlayerBallCount(ballCount);
       blockManager.initLevel();
       setupHUD();
       addEventListeners();
       gameState = 'aiming';
-      ballCount = 10;
       launchPos = { x: W / 2, y: H - 50 };
       nextLaunchX = W / 2;
       firstLandedX = null;
       landedBallsCount = 0;
       downBtnPressed = false;
-      
+
       // Сброс очков и комбо
       score = 0;
       hitCombo = 0;
@@ -547,10 +605,19 @@ function LevelKnockout(engine, opts = {}) {
       perfectTurns = 0;
       floatingTexts.length = 0;
       gameStartTime = Date.now();
+      levelElapsed = 0;
     },
 
     update(dt) {
       if (gameState === 'gameOver' || gameState === 'paused') return;
+      if (isLevelMode) {
+        levelElapsed += dt / 1000;
+        if (isLevelGoalComplete() || levelElapsed >= levelConfig.timeLimit) {
+          gameState = 'gameOver';
+          showGameOver();
+          return;
+        }
+      }
       ballManager.update();
       blockManager.update(); // Обновление эффектов
 
@@ -572,39 +639,39 @@ function LevelKnockout(engine, opts = {}) {
               // Комбо за попадание
               hitCombo++;
               maxCombo = Math.max(maxCombo, hitCombo);
-              
+
               // Множитель комбо
               const comboMult = Math.min(1 + Math.floor(hitCombo / 10) * 0.5, 5);
               const hitPoints = Math.round(10 * comboMult);
               score += hitPoints;
-              
+
               // Звук с вариацией по комбо
               SoundEffects.playHit();
-              
+
               // Показываем комбо каждые 10 попаданий
               if (hitCombo % 10 === 0 && hitCombo > 0) {
                 floatingTexts.push(new FloatingText(
-                  ball.x, ball.y - 20, 
-                  `${hitCombo} HITS! ×${comboMult.toFixed(1)}`, 
+                  ball.x, ball.y - 20,
+                  `${hitCombo} HITS! ×${comboMult.toFixed(1)}`,
                   '#FF5722', 24
                 ));
               }
-              
+
               const result = block.takeDamage();
               if (result.explode) {
                 SoundEffects.playBreak();
                 blocksDestroyedThisTurn++;
                 totalBlocksDestroyed++;
-                
+
                 // Бонус за уничтожение блока
                 const destroyPoints = Math.round(50 * comboMult);
                 score += destroyPoints;
                 floatingTexts.push(new FloatingText(
-                  block.x + block.w/2, block.y + block.h/2, 
-                  `+${destroyPoints}`, 
+                  block.x + block.w/2, block.y + block.h/2,
+                  `+${destroyPoints}`,
                   '#4CAF50', 18
                 ));
-                
+
                 blockManager.processExplosion(block, result);
               }
             }
@@ -661,55 +728,61 @@ function LevelKnockout(engine, opts = {}) {
 
       blockManager.blocks = blockManager.blocks.filter(b => b.active);
 
+      if (isLevelMode && isLevelGoalComplete()) {
+        gameState = 'gameOver';
+        showGameOver();
+        return;
+      }
+
       // Конец хода
       if (gameState === 'shooting' && ballManager.allLanded()) {
         SoundEffects.playRoundEnd();
-        
+
         // Бонус за идеальный ход (3+ уничтоженных блоков)
         if (blocksDestroyedThisTurn >= 3) {
           perfectTurns++;
           const perfectBonus = blocksDestroyedThisTurn * 100;
           score += perfectBonus;
           floatingTexts.push(new FloatingText(
-            W / 2, H / 2 - 50, 
-            `PERFECT! +${perfectBonus}`, 
+            W / 2, H / 2 - 50,
+            `PERFECT! +${perfectBonus}`,
             '#FFD700', 32
           ));
           SoundEffects.playBonus();
         }
-        
+
         // Бонус за большое комбо
         if (hitCombo >= 50) {
           const comboBonus = hitCombo * 5;
           score += comboBonus;
           floatingTexts.push(new FloatingText(
-            W / 2, H / 2, 
-            `${hitCombo} COMBO! +${comboBonus}`, 
+            W / 2, H / 2,
+            `${hitCombo} COMBO! +${comboBonus}`,
             '#FF5722', 28
           ));
         }
-        
+
         // Сброс счётчиков хода
         hitCombo = 0;
         blocksDestroyedThisTurn = 0;
-        
+
         // Обновляем рекорд
         if (score > best) {
           best = score;
           localStorage.setItem('mbg-bricks-best', String(best));
         }
-        
+
         launchPos.x = Math.max(30, Math.min(firstLandedX || W / 2, W - 30));
         nextLaunchX = launchPos.x;
-        
+
         firstLandedX = null;
         landedBallsCount = 0;
         downBtnPressed = false;
-        
+
         blockManager.cleanupTriggered();
-        
+
         ballManager.clear();
-        
+
         // Обновляем mercy-систему перед генерацией нового ряда
         blockManager.setPlayerBallCount(ballCount);
         blockManager.descendAll();
@@ -732,7 +805,7 @@ function LevelKnockout(engine, opts = {}) {
       // Игровые объекты
       blockManager.draw(ctx);
       ballManager.draw(ctx);
-      
+
       // Всплывающие тексты
       for (const text of floatingTexts) {
         text.draw(ctx);
@@ -748,7 +821,7 @@ function LevelKnockout(engine, opts = {}) {
 
       if (gameState === 'shooting') {
         renderer.drawDownButton(ctx, downBtnPressed);
-        
+
         // Показываем комбо во время стрельбы
         if (hitCombo >= 10) {
           ctx.save();
@@ -769,6 +842,14 @@ function LevelKnockout(engine, opts = {}) {
       ctx.font = '14px Arial';
       ctx.fillStyle = '#888';
       ctx.fillText(`${i18n.t('game.best')}: ${best}`, 12, 52);
+      if (isLevelMode) {
+        ctx.fillStyle = '#d6def6';
+        ctx.font = '13px Arial';
+        ctx.fillText(`🎯 ${getLevelProgress()} / ${levelConfig.goal.target}`, 12, 74);
+        ctx.textAlign = 'right';
+        const timeLeft = Math.max(0, Math.ceil(levelConfig.timeLimit - levelElapsed));
+        ctx.fillText(`⏱ ${timeLeft}s`, W - 68, 32);
+      }
       ctx.restore();
 
       // Ход по центру сверху

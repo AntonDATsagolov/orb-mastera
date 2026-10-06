@@ -1,0 +1,15 @@
+{
+  "name": "orb-masters",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ORB MASTERS multi-mode arcade PWA",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "preview": "node scripts/serve.mjs --release",
+    "check": "node scripts/check-release.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "release:check": "npm run check && npm test && npm run build"
+  }
+}

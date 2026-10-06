@@ -26,7 +26,6 @@ class Tutorial {
 
   buildPages() {
     this.pages = [
-      // Страница 1: Добро пожаловать
       {
         title: t('tutorial.welcome.title'),
         icon: '🎮',
@@ -36,7 +35,6 @@ class Tutorial {
           { type: 'highlight', value: t('tutorial.welcome.tip') },
         ],
       },
-      // Страница 2: Режимы игры (обзор)
       {
         title: t('tutorial.modes.title'),
         icon: '🎯',
@@ -45,105 +43,12 @@ class Tutorial {
           { type: 'modeList', value: Object.values(GAME_MODES) },
         ],
       },
-      // Страница 3: Cash Catcher
-      {
-        title: t('modes.catch.name'),
-        icon: '🎰',
-        color: GAME_MODES.catch.color,
-        content: [
-          { type: 'text', value: t('tutorial.catch.desc') },
-          { type: 'steps', value: [
-            t('tutorial.catch.step1'),
-            t('tutorial.catch.step2'),
-            t('tutorial.catch.step3'),
-          ]},
-          { type: 'highlight', value: t('tutorial.catch.tip') },
-        ],
-      },
-      // Страница 4: Bricks Breaker
-      {
-        title: t('modes.bricks.name'),
-        icon: '🎯',
-        color: GAME_MODES.bricks.color,
-        content: [
-          { type: 'text', value: t('tutorial.bricks.desc') },
-          { type: 'steps', value: [
-            t('tutorial.bricks.step1'),
-            t('tutorial.bricks.step2'),
-            t('tutorial.bricks.step3'),
-          ]},
-          { type: 'highlight', value: t('tutorial.bricks.tip') },
-        ],
-      },
-      // Страница 5: Block Puzzle
-      {
-        title: t('modes.puzzle.name'),
-        icon: '🧩',
-        color: GAME_MODES.puzzle.color,
-        content: [
-          { type: 'text', value: t('tutorial.puzzle.desc') },
-          { type: 'steps', value: [
-            t('tutorial.puzzle.step1'),
-            t('tutorial.puzzle.step2'),
-            t('tutorial.puzzle.step3'),
-          ]},
-          { type: 'highlight', value: t('tutorial.puzzle.tip') },
-        ],
-      },
-      // Страница 6: Knockout Zuma
-      {
-        title: t('modes.zuma.name'),
-        icon: '⚔️',
-        color: GAME_MODES.zuma.color,
-        content: [
-          { type: 'text', value: t('tutorial.zuma.desc') },
-          { type: 'steps', value: [
-            t('tutorial.zuma.step1'),
-            t('tutorial.zuma.step2'),
-            t('tutorial.zuma.step3'),
-          ]},
-          { type: 'highlight', value: t('tutorial.zuma.tip') },
-        ],
-      },
-      // Страница 7: Orbs и прогресс
-      {
-        title: t('tutorial.orbs.title'),
-        icon: '🔮',
-        content: [
-          { type: 'text', value: t('tutorial.orbs.desc') },
-          { type: 'rewards', value: [
-            { icon: '🎮', text: t('tutorial.orbs.source1') },
-            { icon: '📅', text: t('tutorial.orbs.source2') },
-            { icon: '🏆', text: t('tutorial.orbs.source3') },
-            { icon: '⭐', text: t('tutorial.orbs.source4') },
-          ]},
-          { type: 'highlight', value: t('tutorial.orbs.tip') },
-        ],
-      },
-      // Страница 8: Уровни сложности
       {
         title: t('tutorial.stages.title'),
-        icon: '⭐',
+        icon: '🗺️',
         content: [
           { type: 'text', value: t('tutorial.stages.desc') },
-          { type: 'stageList', value: [
-            { stars: 1, name: 'Rookie', mult: '1x', color: '#6B7280' },
-            { stars: 2, name: 'Skilled', mult: '1.5x', color: '#3B82F6' },
-            { stars: 3, name: 'Expert', mult: '2.5x', color: '#8B5CF6' },
-            { stars: 4, name: 'Master', mult: '4x', color: '#F59E0B' },
-            { stars: 5, name: 'Legend', mult: '6x', color: '#EF4444' },
-          ]},
-          { type: 'highlight', value: t('tutorial.stages.tip') },
-        ],
-      },
-      // Страница 9: Удачи!
-      {
-        title: t('tutorial.final.title'),
-        icon: '🚀',
-        content: [
-          { type: 'text', value: t('tutorial.final.desc1') },
-          { type: 'text', value: t('tutorial.final.desc2') },
-          { type: 'bigButton', value: t('tutorial.final.start') },
+          { type: 'highlight', value: t('tutorial.final.desc2') },
         ],
       },
     ];
@@ -300,7 +205,12 @@ class Tutorial {
       this.renderPage();
     }));
     this.navContainer.appendChild(dots);
-    this.navContainer.appendChild(this.createNavButton('→', this.currentPage < this.pages.length - 1, () => {
+    const isLastPage = this.currentPage === this.pages.length - 1;
+    this.navContainer.appendChild(this.createNavButton(isLastPage ? t('tutorial.final.start') : '→', true, () => {
+      if (isLastPage) {
+        this.close();
+        return;
+      }
       this.currentPage++;
       this.renderPage();
     }));

@@ -7,17 +7,161 @@ import { SoundEffects } from '../game/SoundEffects.js';
 import { showSettingsModal } from '../game/SettingsModal.js';
 import { showGameResult } from '../ui/GameResultScreen.js';
 import i18n, { t } from '../i18n/LanguageManager.js';
+import levelSystem, { GOAL_TYPES } from '../core/LevelSystem.js';
+import onboardingManager from '../core/OnboardingManager.js';
+import difficultyManager from '../core/DifficultyManager.js';
 
 function LevelMatch3(engine, opts = {}) {
   const canvas = engine.canvas;
   let W = canvas.clientWidth;
   let H = canvas.clientHeight;
-  
+
   let game = null;
   let pauseOverlay = null;
   let gameOverOverlay = null;
   let infoOverlay = null;
-  
+
+  // === СИСТЕМА УРОВНЕЙ ===
+  const levelId = localStorage.getItem('orb-masters-current-level');
+  const levelConfig = levelId ? levelSystem.getLevel('match3', levelId) : null;
+  const isLevelMode = !!levelConfig;
+
+  // Если играем уровень, используем его настройки
+  let levelTimeLimit = levelConfig?.timeLimit || null;
+  let levelGoal = levelConfig?.goal || null;
+  let levelDifficulty = levelConfig?.difficulty || null;
+  let levelTimer = levelTimeLimit ? levelTimeLimit * 1000 : 0;
+
+  // Настройки сложности для Match3
+  const adaptiveDifficulty = difficultyManager.getModifier('knockoutZuma');
+  const levelMoves = Math.max(26, Math.min(40, Math.round(32 / (levelDifficulty?.speed || 1) / adaptiveDifficulty)));
+  const stageColorCount = 4 + Math.floor(((levelConfig?.stage || 1) - 1) / 2);
+  const levelColors = Math.max(4, Math.min(6, stageColorCount - (adaptiveDifficulty < 0.9 ? 1 : 0)));
+
+  // === Функции системы уровней ===
+  function getGoalProgress() {
+    if (!levelGoal || !game) return 0;
+
+    switch (levelGoal.type) {
+      case GOAL_TYPES.SCORE:
+        return game.score || 0;
+      case GOAL_TYPES.COLLECT:
+        return game.totalCleared || 0;
+      case GOAL_TYPES.COMBO:
+        return game.maxCombo || 0;
+      case GOAL_TYPES.SURVIVE:
+        return Math.floor((levelTimeLimit * 1000 - levelTimer) / 1000);
+      default:
+        return 0;
+    }
+  }
+
+  function checkLevelGoal() {
+    if (!levelGoal) return false;
+    const progress = getGoalProgress();
+    return progress >= levelGoal.target;
+  }
+
+  function calculateStars() {
+    if (!levelConfig || !levelConfig.stars) return 1;
+
+    const progress = getGoalProgress();
+    const { one, two, three } = levelConfig.stars;
+
+    if (progress >= three) return 3;
+    if (progress >= two) return 2;
+    if (progress >= one) return 1;
+    return 0;
+  }
+
+  function handleGameOver() {
+    const playTime = Math.floor((Date.now() - gameStartTime) / 1000);
+    const best = parseInt(localStorage.getItem('mbg-match3-best') || '0', 10);
+
+    // Сохраняем рекорд
+    if (game.score > best) {
+      localStorage.setItem('mbg-match3-best', String(game.score));
+    }
+
+    // Записываем игру в онбординг
+    onboardingManager.recordGamePlayed('match3');
+
+    const isWin = isLevelMode ? checkLevelGoal() : false;
+
+    if (isLevelMode && isWin) {
+      // Завершение уровня с победой
+      const stars = calculateStars();
+      levelSystem.completeLevel('match3', levelId, stars);
+      SoundEffects.playBonus();
+
+      showGameResult({
+        mode: 'zuma',
+        score: game.score,
+        combo: game.maxCombo || 0,
+        stage: levelConfig.stage,
+        duration: playTime,
+        isPerfect: (game.maxCombo || 0) >= 5,
+        isWin: true,
+        isLevelMode: true,
+        levelId: levelId,
+        stars: stars,
+        levelReward: levelConfig.rewards?.orbs || 10,
+        engine: engine,
+        onRetry: () => { restartGame(); },
+        onHome: () => { engine.goTo('menu'); },
+        onNextLevel: () => {
+          const nextLevel = levelSystem.getNextLevel('match3');
+          if (nextLevel) {
+            localStorage.setItem('orb-masters-current-level', nextLevel.id);
+            engine.goTo('level_match3');
+          } else {
+            engine.goTo('menu');
+          }
+        }
+      });
+    } else if (isLevelMode) {
+      // Поражение в режиме уровня
+      SoundEffects.playGameOver();
+      const currentStage = parseInt(localStorage.getItem('orb-masters-current-stage')) || 1;
+
+      showGameResult({
+        mode: 'zuma',
+        score: game.score,
+        combo: game.maxCombo || 0,
+        stage: currentStage,
+        duration: playTime,
+        isPerfect: false,
+        isWin: false,
+        isLevelMode: true,
+        levelId: levelId,
+        engine: engine,
+        onRetry: () => { restartGame(); },
+        onHome: () => { engine.goTo('menu'); }
+      });
+    } else {
+      // Бесконечный режим
+      SoundEffects.playGameOver();
+      const currentStage = parseInt(localStorage.getItem('orb-masters-current-stage')) || 1;
+
+      showGameResult({
+        mode: 'zuma',
+        score: game.score,
+        combo: game.maxCombo || 0,
+        stage: currentStage,
+        duration: playTime,
+        isPerfect: (game.maxCombo || 0) >= 5,
+        isWin: game.score > 0,
+        engine: engine,
+        onRetry: () => { restartGame(); },
+        onHome: () => { engine.goTo('menu'); }
+      });
+    }
+
+    // Сохранение прогресса
+    localStorage.setItem('mbg-lastLevel', '4');
+    localStorage.setItem('mbg-lastScore', String(game.score));
+  }
+
   // Слушатель смены языка - пересоздаём меню паузы
   function onLanguageChanged() {
     const wasVisible = pauseOverlay && pauseOverlay.style.display === 'flex';
@@ -79,15 +223,15 @@ function LevelMatch3(engine, opts = {}) {
     pauseOverlay.appendChild(pauseBtnContainer);
     document.body.appendChild(pauseOverlay);
   }
-  
+
   // Состояние паузы
   let isPaused = false;
   let gameStartTime = Date.now();
   let gameOverShown = false;
-  
+
   // Свайп
   let swipeStart = null;
-  
+
   // Кнопка паузы справа вверху (стандартная позиция для всех уровней)
   const pauseBtnRect = { x: W - 56, y: 8, width: 48, height: 48 };
 
@@ -109,12 +253,14 @@ function LevelMatch3(engine, opts = {}) {
   function pauseGame() {
     if (isPaused || game.state === 'gameover') return;
     isPaused = true;
+    AudioManager.pause();
     SoundEffects.playClick();
     if (pauseOverlay) pauseOverlay.style.display = 'flex';
   }
 
   function resumeGame() {
     isPaused = false;
+    AudioManager.resume();
     SoundEffects.playClick();
     if (pauseOverlay) pauseOverlay.style.display = 'none';
   }
@@ -138,6 +284,7 @@ function LevelMatch3(engine, opts = {}) {
     gameStartTime = Date.now();
     gameOverShown = false;
     swipeStart = null; // Сбрасываем состояние свайпа
+    levelTimer = levelTimeLimit ? levelTimeLimit * 1000 : 0;
     if (pauseOverlay) pauseOverlay.style.display = 'none';
     if (gameOverOverlay) gameOverOverlay.style.display = 'none';
   }
@@ -146,15 +293,15 @@ function LevelMatch3(engine, opts = {}) {
   function onPointerDown(e) {
     e.preventDefault();
     const coords = getEventCoords(e);
-    
+
     // Проверка клика по кнопке паузы
     if (!isPaused && game.state !== 'gameover' && isPauseButtonClicked(coords.x, coords.y)) {
       pauseGame();
       return;
     }
-    
+
     if (isPaused) return;
-    
+
     swipeStart = coords;
     // Начинаем перетаскивание кристалла
     game.handleDragStart(coords.x, coords.y);
@@ -163,9 +310,9 @@ function LevelMatch3(engine, opts = {}) {
   function onPointerMove(e) {
     e.preventDefault();
     const coords = getEventCoords(e);
-    
+
     if (isPaused) return;
-    
+
     if (swipeStart) {
       // Обновляем позицию перетаскиваемого кристалла
       game.handleDragMove(coords.x, coords.y);
@@ -178,24 +325,24 @@ function LevelMatch3(engine, opts = {}) {
   function onPointerUp(e) {
     e.preventDefault();
     if (isPaused || !swipeStart) return;
-    
+
     const rect = canvas.getBoundingClientRect();
     const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
     const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
     const endX = clientX - rect.left;
     const endY = clientY - rect.top;
-    
+
     const dx = endX - swipeStart.x;
     const dy = endY - swipeStart.y;
-    
+
     // Завершаем перетаскивание - это вызовет swap если нужно
     const dragHandled = game.handleDragEnd(endX, endY);
-    
+
     // Если drag не обработал (не было перетаскивания) - проверяем на клик
     if (!dragHandled && Math.abs(dx) < 15 && Math.abs(dy) < 15) {
       game.handleClick(swipeStart.x, swipeStart.y);
     }
-    
+
     swipeStart = null;
   }
 
@@ -212,7 +359,7 @@ function LevelMatch3(engine, opts = {}) {
     ctx.beginPath();
     ctx.roundRect(pauseBtnRect.x, pauseBtnRect.y, pauseBtnRect.width, pauseBtnRect.height, 10);
     ctx.fill();
-    
+
     // Иконка паузы
     ctx.fillStyle = '#FFF';
     const barW = 8;
@@ -228,10 +375,13 @@ function LevelMatch3(engine, opts = {}) {
     async init() {
       // Запускаем музыку
       AudioManager.playTrack('level4');
-      
-      // Инициализация игры
-      game = new Match3Game(W, H);
-      
+
+      // Инициализация игры с настройками сложности
+      game = new Match3Game(W, H, {
+        moves: isLevelMode ? levelMoves : 30,
+        gemTypes: isLevelMode ? levelColors : 6,
+      });
+
       // Создание pause overlay
       createPauseOverlay();
 
@@ -394,37 +544,27 @@ function LevelMatch3(engine, opts = {}) {
 
     update(dt) {
       if (isPaused) return;
-      
+
       game.update();
-      
+
+      // Обновляем таймер уровня
+      if (isLevelMode && levelTimeLimit && game.state !== 'gameover') {
+        levelTimer -= dt;
+        if (levelTimer <= 0) {
+          levelTimer = 0;
+          game.state = 'gameover';
+        }
+      }
+
+      // Проверка цели уровня
+      if (isLevelMode && game.state !== 'gameover' && checkLevelGoal()) {
+        game.state = 'gameover';
+      }
+
       // Показ game over через новую систему
       if (game.state === 'gameover' && !gameOverShown) {
         gameOverShown = true;
-        const playTime = Math.floor((Date.now() - gameStartTime) / 1000);
-        const best = parseInt(localStorage.getItem('mbg-match3-best') || '0', 10);
-        
-        // Сохраняем рекорд
-        if (game.score > best) {
-          localStorage.setItem('mbg-match3-best', String(game.score));
-        }
-        
-        showGameResult({
-          mode: 'knockoutZuma', // Используем тот же режим с высоким множителем для Match3
-          score: game.score,
-          bestScore: Math.max(best, game.score),
-          stats: {
-            movesUsed: game.moves || 0,
-            gemsCleared: game.totalCleared || 0,
-            maxCombo: game.maxCombo || 0
-          },
-          playTimeSeconds: playTime,
-          onRestart: () => { restartGame(); },
-          onMenu: () => { engine.goTo('menu'); }
-        });
-        
-        // Сохранение прогресса
-        localStorage.setItem('mbg-lastLevel', '4');
-        localStorage.setItem('mbg-lastScore', String(game.score));
+        handleGameOver();
       }
     },
 
@@ -435,10 +575,22 @@ function LevelMatch3(engine, opts = {}) {
       grad.addColorStop(1, '#16213e');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
-      
+
       // Игра
       game.draw(ctx);
-      
+
+      if (isLevelMode && game.state !== 'gameover') {
+        ctx.save();
+        ctx.fillStyle = '#d6def6';
+        ctx.font = '13px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`🎯 ${getGoalProgress()} / ${levelGoal.target}`, 12, 76);
+        ctx.textAlign = 'right';
+        ctx.fillText(`⏱ ${Math.ceil(levelTimer / 1000)}s`, W - 68, 76);
+        ctx.restore();
+      }
+
       // Кнопка паузы
       if (game.state !== 'gameover') {
         drawPauseButton(ctx);
@@ -454,7 +606,7 @@ function LevelMatch3(engine, opts = {}) {
       canvas.removeEventListener('touchend', onPointerUp);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('languageChanged', onLanguageChanged);
-      
+
       if (pauseOverlay) pauseOverlay.remove();
       if (gameOverOverlay) gameOverOverlay.remove();
       if (infoOverlay) infoOverlay.remove();

@@ -4,6 +4,7 @@
  */
 
 import playerProfile from '../core/PlayerProfile.js';
+import levelSystem from '../core/LevelSystem.js';
 import orbsManager from '../core/OrbsManager.js';
 import { COLORS, FONTS, FONT_SIZES, UI, ANIMATIONS, GAME_MODES, STAGES, applyStyles, formatNumber } from '../core/GameConfig.js';
 import { AudioManager } from '../game/AudioManager.js';
@@ -31,6 +32,7 @@ class MainMenu {
 
     // Контейнер
     this.container = document.createElement('div');
+    this.container.className = 'orb-menu-shell';
     applyStyles(this.container, {
       position: 'absolute',
       inset: '0',
@@ -51,6 +53,9 @@ class MainMenu {
     // Карточка Daily Bonus (если есть)
     this.createDailyBonus();
 
+    // Быстрый возврат к следующему незавершённому уровню
+    this.createContinueCard();
+
     // Режимы игры
     this.createModeCards();
 
@@ -67,6 +72,7 @@ class MainMenu {
 
   createHeader() {
     const header = document.createElement('div');
+    header.className = 'orb-menu-header';
     applyStyles(header, {
       width: '100%',
       maxWidth: '500px',
@@ -194,6 +200,7 @@ class MainMenu {
 
     // Название игры
     const title = document.createElement('h1');
+    title.className = 'orb-brand-title';
     title.textContent = 'ORB MASTERS';
     applyStyles(title, {
       fontSize: FONT_SIZES.xxxl,
@@ -212,6 +219,7 @@ class MainMenu {
 
     // Подзаголовок
     const subtitle = document.createElement('p');
+    subtitle.className = 'orb-menu-subtitle';
     subtitle.textContent = t('mainMenu.selectMode');
     applyStyles(subtitle, {
       fontSize: FONT_SIZES.md,
@@ -224,13 +232,14 @@ class MainMenu {
 
   createDailyBonus() {
     const dailyBonus = orbsManager.getDailyBonus();
-    
+
     // Проверяем, получен ли уже бонус сегодня
     const today = new Date().toDateString();
     const lastClaimed = localStorage.getItem('orb-masters-daily-claimed');
     if (lastClaimed === today) return;
 
     const card = document.createElement('div');
+    card.className = 'orb-daily-card';
     applyStyles(card, {
       width: '100%',
       maxWidth: '500px',
@@ -254,7 +263,7 @@ class MainMenu {
     });
 
     const leftPart = document.createElement('div');
-    
+
     const bonusTitle = document.createElement('div');
     bonusTitle.textContent = t('mainMenu.dailyBonus');
     applyStyles(bonusTitle, {
@@ -302,12 +311,12 @@ class MainMenu {
       SoundEffects.playBonus();
       orbsManager.addBonus(dailyBonus.total, 'Daily bonus');
       localStorage.setItem('orb-masters-daily-claimed', today);
-      
+
       // Анимация
       card.style.transform = 'scale(1.1)';
       card.style.opacity = '0';
       setTimeout(() => card.remove(), 300);
-      
+
       // Обновить отображение Orbs
       this.refresh();
     });
@@ -315,8 +324,77 @@ class MainMenu {
     this.container.appendChild(card);
   }
 
+  createContinueCard() {
+    const savedMode = localStorage.getItem('orb-masters-current-mode');
+    const modes = ['catch', 'bricks', 'puzzle', 'match3'];
+    const orderedModes = savedMode
+      ? [savedMode === 'zuma' ? 'match3' : savedMode, ...modes.filter((mode) => mode !== (savedMode === 'zuma' ? 'match3' : savedMode))]
+      : modes;
+    let route = null;
+
+    for (const mode of orderedModes) {
+      const level = levelSystem.getNextLevel(mode);
+      if (level) {
+        route = { mode: mode === 'match3' ? 'zuma' : mode, level };
+        break;
+      }
+    }
+    if (!route) return;
+
+    const modeConfig = GAME_MODES[route.mode];
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'orb-continue-card';
+    applyStyles(card, {
+      width: '100%',
+      maxWidth: '500px',
+      marginBottom: UI.spacing.lg,
+      padding: UI.spacing.md,
+      display: 'flex',
+      alignItems: 'center',
+      gap: UI.spacing.md,
+      textAlign: 'left',
+      color: COLORS.textPrimary,
+      background: `linear-gradient(115deg, ${modeConfig.color}55, rgba(25, 30, 67, 0.96))`,
+      border: `1px solid ${modeConfig.color}99`,
+      borderRadius: UI.borderRadius.lg,
+      cursor: 'pointer',
+      boxShadow: `0 10px 28px ${modeConfig.color}22`,
+    });
+
+    const icon = document.createElement('span');
+    icon.textContent = modeConfig.icon;
+    icon.style.fontSize = '34px';
+
+    const details = document.createElement('span');
+    details.style.flex = '1';
+    const title = document.createElement('strong');
+    title.textContent = `${t('mainMenu.continue')} · ${t(`modes.${route.mode}.shortName`)}`;
+    const subtitle = document.createElement('span');
+    subtitle.textContent = `${t('levels.playLevel')} ${route.level.sublevel} · 🎯 ${route.level.goal.target}`;
+    subtitle.style.display = 'block';
+    subtitle.style.marginTop = '4px';
+    subtitle.style.color = COLORS.textSecondary;
+    subtitle.style.fontSize = FONT_SIZES.sm;
+    details.append(title, subtitle);
+
+    const play = document.createElement('span');
+    play.textContent = '▶';
+    play.style.fontSize = FONT_SIZES.xl;
+    card.append(icon, details, play);
+    card.addEventListener('click', () => {
+      SoundEffects.playClick();
+      localStorage.setItem('orb-masters-current-mode', route.mode);
+      localStorage.setItem('orb-masters-current-level', route.level.id);
+      this.destroy();
+      this.engine.goTo(modeConfig.sceneKey, { levelId: route.level.id, levelConfig: route.level });
+    });
+    this.container.appendChild(card);
+  }
+
   createModeCards() {
     const modesGrid = document.createElement('div');
+    modesGrid.className = 'orb-mode-grid';
     applyStyles(modesGrid, {
       display: 'grid',
       gridTemplateColumns: 'repeat(2, 1fr)',
@@ -342,6 +420,11 @@ class MainMenu {
     const masteryLevel = playerProfile.getMasteryLevel(mode.id);
 
     const card = document.createElement('div');
+    card.className = `orb-mode-card${isUnlocked ? ' is-unlocked' : ' is-locked'}`;
+    card.style.setProperty('--mode-color', mode.color);
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-disabled', String(!isUnlocked));
+    card.tabIndex = isUnlocked ? 0 : -1;
     applyStyles(card, {
       background: isUnlocked ? COLORS.cardDark : 'rgba(255, 255, 255, 0.05)',
       borderRadius: UI.borderRadius.lg,
@@ -375,10 +458,18 @@ class MainMenu {
         SoundEffects.playClick();
         this.selectMode(mode);
       });
+      card.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          SoundEffects.playClick();
+          this.selectMode(mode);
+        }
+      });
     }
 
     // Иконка режима
     const icon = document.createElement('div');
+    icon.className = 'orb-mode-icon';
     icon.textContent = mode.icon;
     applyStyles(icon, {
       fontSize: '48px',
@@ -387,6 +478,7 @@ class MainMenu {
 
     // Название
     const name = document.createElement('div');
+    name.className = 'orb-mode-name';
     name.textContent = t(`modes.${mode.id}.shortName`);
     applyStyles(name, {
       fontSize: FONT_SIZES.lg,
@@ -396,7 +488,11 @@ class MainMenu {
 
     // Mastery
     if (isUnlocked) {
+      const description = document.createElement('div');
+      description.className = 'orb-mode-description';
+      description.textContent = t(`modes.${mode.id}.description`);
       const mastery = document.createElement('div');
+      mastery.className = 'orb-mode-mastery';
       mastery.textContent = `⭐ ${t('mainMenu.mastery')} ${masteryLevel}`;
       applyStyles(mastery, {
         fontSize: FONT_SIZES.sm,
@@ -405,6 +501,7 @@ class MainMenu {
       });
       card.appendChild(icon);
       card.appendChild(name);
+      card.appendChild(description);
       card.appendChild(mastery);
     } else {
       // Лок
@@ -418,6 +515,7 @@ class MainMenu {
       });
 
       const unlockText = document.createElement('div');
+      unlockText.className = 'orb-mode-unlock';
       unlockText.textContent = `${t('levels.locked')} ${mode.unlockLevel}`;
       applyStyles(unlockText, {
         fontSize: FONT_SIZES.sm,
@@ -528,8 +626,8 @@ class MainMenu {
         padding: UI.spacing.md,
         borderRadius: UI.borderRadius.md,
         border: isSelected ? `2px solid ${stage.color}` : '2px solid transparent',
-        background: isUnlocked ? 
-          (isSelected ? `${stage.color}30` : 'rgba(255, 255, 255, 0.05)') : 
+        background: isUnlocked ?
+          (isSelected ? `${stage.color}30` : 'rgba(255, 255, 255, 0.05)') :
           'rgba(255, 255, 255, 0.02)',
         cursor: isUnlocked ? 'pointer' : 'not-allowed',
         opacity: isUnlocked ? '1' : '0.4',
@@ -622,16 +720,17 @@ class MainMenu {
     // Сохраняем выбранный stage для использования в игре
     localStorage.setItem('orb-masters-current-mode', mode.id);
     localStorage.setItem('orb-masters-current-stage', this.selectedStage.toString());
-    
+
     // Удаляем меню
     this.destroy();
-    
+
     // Переходим к игре
     this.engine.goTo(mode.sceneKey);
   }
 
   createBottomBar() {
     const bar = document.createElement('div');
+    bar.className = 'orb-bottom-bar';
     applyStyles(bar, {
       position: 'fixed',
       bottom: '0',
@@ -754,7 +853,7 @@ class MainMenu {
 // Функция-обёртка для использования как сцена
 function MainMenuScene(engine) {
   let menu = null;
-  
+
   return {
     async init() {
       menu = new MainMenu(engine);

@@ -13,7 +13,7 @@ const GAME_MODES = [
   { id: 'catch', icon: '🪙', colorPrimary: '#F59E0B', colorSecondary: '#D97706' },
   { id: 'bricks', icon: '🧱', colorPrimary: '#EF4444', colorSecondary: '#DC2626' },
   { id: 'puzzle', icon: '🧩', colorPrimary: '#8B5CF6', colorSecondary: '#7C3AED' },
-  { id: 'match3', icon: '💎', colorPrimary: '#06B6D4', colorSecondary: '#0891B2' },
+  { id: 'zuma', icon: '💎', colorPrimary: '#06B6D4', colorSecondary: '#0891B2' },
 ];
 
 class RecordsManager {
@@ -25,7 +25,14 @@ class RecordsManager {
   load() {
     const saved = localStorage.getItem(this.storageKey);
     if (saved) {
-      return JSON.parse(saved);
+      const data = JSON.parse(saved);
+      // Preserve records from builds that stored this mode as `match3`.
+      if (data.modes?.match3 && !data.modes.zuma) {
+        data.modes.zuma = data.modes.match3;
+        delete data.modes.match3;
+        localStorage.setItem(this.storageKey, JSON.stringify(data));
+      }
+      return data;
     }
     return this.getDefault();
   }
@@ -67,15 +74,15 @@ class RecordsManager {
     }
 
     const modeData = this.data.modes[modeId];
-    
+
     // Обновляем статистику
     modeData.gamesPlayed += 1;
     modeData.totalScore += score;
-    
+
     if (score > modeData.bestScore) {
       modeData.bestScore = score;
     }
-    
+
     if (combo > modeData.bestCombo) {
       modeData.bestCombo = combo;
     }
@@ -85,7 +92,7 @@ class RecordsManager {
     this.data.totalOrbsEarned += orbs;
 
     this.save();
-    
+
     return {
       isNewBest: score >= modeData.bestScore,
       previousBest: modeData.bestScore
@@ -179,7 +186,7 @@ export function showRecords(onClose) {
 
   // Глобальная статистика
   const records = recordsManager.getRecords();
-  
+
   const globalStats = document.createElement('div');
   applyStyles(globalStats, {
     width: '100%',
@@ -245,7 +252,7 @@ export function showRecords(onClose) {
 
   GAME_MODES.forEach(mode => {
     const modeRecord = records.modes[mode.id] || { bestScore: 0, gamesPlayed: 0, bestCombo: 0 };
-    
+
     const card = document.createElement('div');
     applyStyles(card, {
       background: `linear-gradient(135deg, ${mode.colorPrimary}20 0%, ${mode.colorSecondary}20 100%)`,

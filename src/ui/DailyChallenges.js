@@ -5,6 +5,7 @@
 
 import playerProfile from '../core/PlayerProfile.js';
 import orbsManager from '../core/OrbsManager.js';
+import adManager from '../core/AdManager.js';
 import { COLORS, FONTS, FONT_SIZES, UI, ANIMATIONS, applyStyles, formatNumber } from '../core/GameConfig.js';
 import { SoundEffects } from '../game/SoundEffects.js';
 import i18n from '../i18n/LanguageManager.js';
@@ -21,7 +22,7 @@ const CHALLENGE_TYPES = {
 // Функция для получения текста челленджа
 function getChallengeText(challenge) {
   const { type, target, mode } = challenge;
-  
+
   switch (type) {
     case CHALLENGE_TYPES.PLAY_GAMES:
       return i18n.t('daily.playGames').replace('{0}', target);
@@ -44,6 +45,7 @@ function getChallengeText(challenge) {
 
 // Шаблоны челленджей (без getText, т.к. функции не сериализуются)
 const CHALLENGE_TEMPLATES = [
+  { type: CHALLENGE_TYPES.PLAY_GAMES, target: 1, reward: 30, icon: '🎮' },
   { type: CHALLENGE_TYPES.PLAY_GAMES, target: 3, reward: 50, icon: '🎮' },
   { type: CHALLENGE_TYPES.PLAY_GAMES, target: 5, reward: 80, icon: '🎮' },
   { type: CHALLENGE_TYPES.SCORE_TOTAL, target: 5000, reward: 100, icon: '⭐' },
@@ -51,7 +53,7 @@ const CHALLENGE_TEMPLATES = [
   { type: CHALLENGE_TYPES.WIN_MODE, target: 1, mode: 'catch', reward: 60, icon: '🏆' },
   { type: CHALLENGE_TYPES.WIN_MODE, target: 1, mode: 'bricks', reward: 60, icon: '🏆' },
   { type: CHALLENGE_TYPES.WIN_MODE, target: 1, mode: 'puzzle', reward: 60, icon: '🏆' },
-  { type: CHALLENGE_TYPES.WIN_MODE, target: 1, mode: 'match3', reward: 60, icon: '🏆' },
+  { type: CHALLENGE_TYPES.WIN_MODE, target: 1, mode: 'zuma', reward: 60, icon: '🏆' },
   { type: CHALLENGE_TYPES.COMBO_COUNT, target: 10, reward: 70, icon: '🔥' },
   { type: CHALLENGE_TYPES.COMBO_COUNT, target: 20, reward: 120, icon: '🔥' },
   { type: CHALLENGE_TYPES.COLLECT_ORBS, target: 100, reward: 50, icon: '🔮' },
@@ -67,12 +69,14 @@ class DailyChallengesManager {
   load() {
     const saved = localStorage.getItem(this.storageKey);
     if (saved) {
-      const data = JSON.parse(saved);
-      // Проверяем, не новый ли день
-      if (this.isNewDay(data.date)) {
-        return this.generateNew();
+      try {
+        const data = JSON.parse(saved);
+        if (!this.isNewDay(data.date) && Array.isArray(data.challenges) && data.challenges.length === 3) {
+          return data;
+        }
+      } catch (error) {
+        console.warn('Invalid daily challenges; generating a fresh set.', error);
       }
-      return data;
     }
     return this.generateNew();
   }
@@ -87,9 +91,12 @@ class DailyChallengesManager {
   }
 
   generateNew() {
-    // Выбираем 3 случайных челленджа
-    const shuffled = [...CHALLENGE_TEMPLATES].sort(() => Math.random() - 0.5);
-    const selected = shuffled.slice(0, 3);
+    // Каждому игроку доступна одна быстрая цель; остальные две дают разнообразие.
+    const firstRunChallenge = CHALLENGE_TEMPLATES.find((item) => item.type === CHALLENGE_TYPES.PLAY_GAMES && item.target === 1);
+    const shuffled = CHALLENGE_TEMPLATES
+      .filter((item) => item !== firstRunChallenge)
+      .sort(() => Math.random() - 0.5);
+    const selected = [firstRunChallenge, ...shuffled.slice(0, 2)];
 
     const challenges = selected.map((template, index) => ({
       id: index,
@@ -124,16 +131,19 @@ class DailyChallengesManager {
   updateProgress(type, value, mode = null) {
     this.data.challenges.forEach(ch => {
       if (ch.claimed) return;
-      
+
       if (ch.type === type) {
-        if (type === CHALLENGE_TYPES.WIN_MODE && ch.mode !== mode) return;
-        
+        const isSameMode = ch.mode === mode ||
+          ((ch.mode === 'zuma' || ch.mode === 'match3') &&
+           (mode === 'zuma' || mode === 'match3'));
+        if (type === CHALLENGE_TYPES.WIN_MODE && !isSameMode) return;
+
         if (type === CHALLENGE_TYPES.PLAY_GAMES || type === CHALLENGE_TYPES.WIN_MODE) {
           ch.progress += value;
         } else {
           ch.progress += value;
         }
-        
+
         ch.progress = Math.min(ch.progress, ch.target);
       }
     });
@@ -159,7 +169,6 @@ class DailyChallengesManager {
   watchAd() {
     if (this.data.adWatched) return false;
     this.data.adWatched = true;
-    orbsManager.addBonus(50, 'Daily Ad Reward');
     this.save();
     return true;
   }
@@ -175,7 +184,7 @@ class DailyChallengesManager {
 
 // Синглтон
 const dailyChallenges = new DailyChallengesManager();
-export { dailyChallenges, CHALLENGE_TYPES };
+export { dailyChallenges, DailyChallengesManager, CHALLENGE_TYPES };
 
 /**
  * Показать экран Daily Challenges
@@ -257,7 +266,7 @@ export function showDailyChallenges(onClose) {
     marginBottom: UI.spacing.lg,
     textAlign: 'center',
   });
-  
+
   function updateTimer() {
     const ms = dailyChallenges.getTimeUntilReset();
     const hours = Math.floor(ms / (1000 * 60 * 60));
@@ -287,7 +296,7 @@ export function showDailyChallenges(onClose) {
     challenges.forEach(ch => {
       const card = document.createElement('div');
       const isComplete = ch.progress >= ch.target;
-      
+
       applyStyles(card, {
         background: ch.claimed ? 'rgba(76, 175, 80, 0.2)' : COLORS.cardDark,
         borderRadius: UI.borderRadius.lg,
@@ -444,30 +453,43 @@ export function showDailyChallenges(onClose) {
 
   const adBtn = document.createElement('button');
   const canWatch = dailyChallenges.canWatchAd();
-  adBtn.textContent = canWatch ? `📺 ${i18n.t('daily.watchAd')} → +50 🔮` : `✓ ${i18n.t('daily.adWatched')}`;
+  const adReady = adManager.isAdReady();
+  const canStartAd = canWatch && adReady;
+  adBtn.textContent = !canWatch
+    ? `✓ ${i18n.t('daily.adWatched')}`
+    : canStartAd ? `📺 ${i18n.t('daily.watchAd')} → +50 🔮` : `📺 ${i18n.t('shop.iapUnavailable')}`;
   applyStyles(adBtn, {
     padding: `${UI.spacing.md} ${UI.spacing.xl}`,
-    background: canWatch ? COLORS.gradientGold : 'rgba(255,255,255,0.1)',
+    background: canStartAd ? COLORS.gradientGold : 'rgba(255,255,255,0.1)',
     border: 'none',
     borderRadius: UI.borderRadius.md,
-    color: canWatch ? COLORS.deepSpace : COLORS.textMuted,
+    color: canStartAd ? COLORS.deepSpace : COLORS.textMuted,
     fontSize: FONT_SIZES.md,
     fontWeight: '700',
-    cursor: canWatch ? 'pointer' : 'not-allowed',
-    opacity: canWatch ? '1' : '0.6',
+    cursor: canStartAd ? 'pointer' : 'not-allowed',
+    opacity: canStartAd ? '1' : '0.6',
   });
 
-  if (canWatch) {
+  adBtn.disabled = !canStartAd;
+  if (canStartAd) {
     adBtn.onclick = () => {
       SoundEffects.playClick();
-      // Имитация просмотра рекламы
-      showAdModal(() => {
-        dailyChallenges.watchAd();
-        adBtn.textContent = `✓ ${i18n.t('daily.adWatched')}`;
-        adBtn.style.background = 'rgba(255,255,255,0.1)';
-        adBtn.style.color = COLORS.textMuted;
-        adBtn.style.cursor = 'not-allowed';
-        adBtn.onclick = null;
+      adBtn.disabled = true;
+      adManager.showRewardedVideo({
+        reward: 50,
+        reason: 'Daily challenge ad reward',
+        onComplete: () => {
+          orbsManager.addBonus(50, 'Daily Ad Reward');
+          dailyChallenges.watchAd();
+          adBtn.textContent = `✓ ${i18n.t('daily.adWatched')}`;
+          adBtn.style.background = 'rgba(255,255,255,0.1)';
+          adBtn.style.color = COLORS.textMuted;
+          adBtn.style.cursor = 'not-allowed';
+        },
+        onError: () => {
+          adBtn.textContent = `📺 ${i18n.t('shop.iapUnavailable')}`;
+          adBtn.disabled = true;
+        },
       });
     };
   }
@@ -482,69 +504,6 @@ export function showDailyChallenges(onClose) {
   });
 
   document.body.appendChild(overlay);
-}
-
-/**
- * Показать имитацию рекламы
- */
-function showAdModal(onComplete) {
-  const modal = document.createElement('div');
-  applyStyles(modal, {
-    position: 'fixed',
-    inset: '0',
-    background: COLORS.overlay,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: '3000',
-  });
-
-  const content = document.createElement('div');
-  applyStyles(content, {
-    background: COLORS.cardDark,
-    borderRadius: UI.borderRadius.xl,
-    padding: UI.spacing.xl,
-    maxWidth: '350px',
-    width: '90%',
-    textAlign: 'center',
-  });
-
-  const icon = document.createElement('div');
-  icon.textContent = '📺';
-  icon.style.fontSize = '64px';
-  icon.style.marginBottom = UI.spacing.md;
-
-  const text = document.createElement('div');
-  text.innerHTML = `
-    <div style="font-size: 20px; margin-bottom: 12px; color: #FFD700;">[ТЕСТ]</div>
-    <div style="margin-bottom: 20px;">Orbs удвоены!</div>
-    <div style="font-size: 12px; color: #888;">В релизе — реклама от AdMob.</div>
-  `;
-
-  const closeBtn = document.createElement('button');
-  closeBtn.textContent = i18n.t('common.ok');
-  applyStyles(closeBtn, {
-    marginTop: UI.spacing.lg,
-    padding: `${UI.spacing.md} ${UI.spacing.xl}`,
-    background: COLORS.gradientSuccess,
-    border: 'none',
-    borderRadius: UI.borderRadius.md,
-    color: COLORS.textPrimary,
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    cursor: 'pointer',
-  });
-  closeBtn.onclick = () => {
-    SoundEffects.playBonus();
-    modal.remove();
-    if (onComplete) onComplete();
-  };
-
-  content.appendChild(icon);
-  content.appendChild(text);
-  content.appendChild(closeBtn);
-  modal.appendChild(content);
-  document.body.appendChild(modal);
 }
 
 export default showDailyChallenges;

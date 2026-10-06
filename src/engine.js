@@ -22,7 +22,8 @@ class Engine {
     if (!this.running) { this.running = true; this.lastTime = 0; requestAnimationFrame(this._loop.bind(this)); }
   }
   _resize() {
-    const DPR = Math.max(1, window.devicePixelRatio || 1);
+    // A 2x backing store keeps canvas games crisp while avoiding 3x/4x mobile fill cost.
+    const DPR = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
     const rect = this.canvas.getBoundingClientRect();
     const W = rect.width, H = rect.height;
     this.canvas.width = Math.floor(W * DPR);

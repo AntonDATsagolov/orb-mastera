@@ -3,16 +3,52 @@
  * Кэширование статических ресурсов для оффлайн-работы
  */
 
-const CACHE_NAME = 'orb-masters-v1';
+const CACHE_PREFIX = 'orb-masters-orb-mastera-';
+const CACHE_NAME = `${CACHE_PREFIX}v4`;
+const APP_SCOPE = self.registration.scope;
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/src/main.js',
-  '/styles/main.css',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-];
+  '',
+  'index.html',
+  'manifest.json',
+  'styles/main.css',
+  'styles/animations.css',
+  'src/engine.js',
+  'src/main.js',
+  'icons/icon-192.png',
+  'icons/icon-512.png',
+  'src/core/DifficultyManager.js',
+  'src/core/GameConfig.js',
+  'src/core/LevelSystem.js',
+  'src/core/OnboardingManager.js',
+  'src/core/OrbsManager.js',
+  'src/core/PlayerProfile.js',
+  'src/game/AudioManager.js',
+  'src/game/ArcadeMusic.js',
+  'src/game/SettingsModal.js',
+  'src/game/SoundEffects.js',
+  'src/game/bricks_breaker/Ball.js',
+  'src/game/bricks_breaker/Block.js',
+  'src/game/bricks_breaker/BlockManager.js',
+  'src/game/bricks_breaker/Effects.js',
+  'src/game/bricks_breaker/Physics.js',
+  'src/game/bricks_breaker/Renderer.js',
+  'src/game/bricks_breaker/SpecialElements.js',
+  'src/game/match3/Match3Game.js',
+  'src/i18n/LanguageManager.js',
+  'src/i18n/translations.js',
+  'src/scenes/level_catch.js',
+  'src/scenes/level_knockout_zuma.js',
+  'src/scenes/level_match3.js',
+  'src/scenes/level_stack.js',
+  'src/scenes/menuScene.js',
+  'src/ui/DailyChallenges.js',
+  'src/ui/GameResultScreen.js',
+  'src/ui/LevelSelectScreen.js',
+  'src/ui/MainMenu.js',
+  'src/ui/Records.js',
+  'src/ui/Shop.js',
+  'src/ui/Tutorial.js',
+].map((path) => new URL(path, APP_SCOPE).href);
 
 // Установка: кэшируем статические ресурсы
 self.addEventListener('install', (event) => {
@@ -40,7 +76,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME)
+          .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
           .map((name) => {
             console.log('[SW] Deleting old cache:', name);
             return caches.delete(name);
@@ -65,34 +101,40 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // This worker only owns requests inside the app's registered scope.
+  if (!event.request.url.startsWith(APP_SCOPE)) {
+    return;
+  }
+
   event.respondWith(
     // Сначала пробуем сеть
     fetch(event.request)
       .then((response) => {
         // Клонируем ответ для кэширования
         const responseClone = response.clone();
-        
+
         // Кэшируем успешные ответы
         if (response.status === 200) {
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseClone);
           });
         }
-        
+
         return response;
       })
       .catch(() => {
         // Если сеть недоступна, берём из кэша
-        return caches.match(event.request).then((cachedResponse) => {
+        return caches.open(CACHE_NAME).then((cache) => cache.match(event.request)).then((cachedResponse) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          
+
           // Для HTML возвращаем оффлайн-страницу
-          if (event.request.headers.get('accept').includes('text/html')) {
-            return caches.match('/index.html');
+          if ((event.request.headers.get('accept') || '').includes('text/html')) {
+            return caches.open(CACHE_NAME)
+              .then((cache) => cache.match(new URL('index.html', APP_SCOPE).href));
           }
-          
+
           // Иначе возвращаем ошибку
           return new Response('Offline', {
             status: 503,
@@ -111,8 +153,8 @@ self.addEventListener('push', (event) => {
   const data = event.data.json();
   const options = {
     body: data.body || 'Новое уведомление от ORB MASTERS',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    icon: new URL('icons/icon-192.png', APP_SCOPE).href,
+    badge: new URL('icons/icon-192.png', APP_SCOPE).href,
     vibrate: [100, 50, 100],
     data: {
       url: data.url || '/',
@@ -127,9 +169,9 @@ self.addEventListener('push', (event) => {
 // Клик по уведомлению
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  
+
   const url = event.notification.data?.url || '/';
-  
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {

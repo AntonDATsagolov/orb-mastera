@@ -1,4 +1,5 @@
 // AudioManager.js - Управление музыкой и звуками
+import { ArcadeMusic } from './ArcadeMusic.js';
 
 /**
  * Синглтон для управления аудио в игре
@@ -11,24 +12,22 @@ class AudioManagerClass {
     this.isMuted = false;
     this.isPlaying = false;
     this.fadeInterval = null;
-    
+    this.arcadeMusic = new ArcadeMusic({ volume: this.volume, muted: this.isMuted });
+
     // Поддерживаемые форматы (порядок приоритета)
     this.supportedFormats = ['mp3', 'ogg', 'webm', 'mp4', 'm4a', 'wav'];
-    
-    // Треки для разных сцен (без расширения - будет искать автоматически)
-    this.tracks = {
-      menu: 'src/assets/audio/lofi_menu',
-      level1: 'src/assets/audio/lofi_chill',
-      level2: 'src/assets/audio/lofi_beats',
-      level3: 'src/assets/audio/lofi_night',
-      level4: 'src/assets/audio/lofi_crystals'
-    };
-    
+
+    // The original Web Audio score is the default. Optional licensed recordings
+    // can be mapped here later without probing for missing files on every scene.
+    this.tracks = {};
+
     // Кэш найденных файлов
     this.resolvedTracks = {};
-    
+
     // Загрузка настроек из localStorage
     this.loadSettings();
+    this.arcadeMusic.setVolume(this.volume);
+    this.arcadeMusic.setMuted(this.isMuted);
   }
 
   /**
@@ -66,20 +65,31 @@ class AudioManagerClass {
    */
   async playTrack(sceneName) {
     const trackBase = this.tracks[sceneName];
-    if (!trackBase) return;
-    
+    if (!trackBase) {
+      if (this.music) {
+        this.music.pause();
+        this.music = null;
+      }
+      this.arcadeMusic.start(sceneName);
+      this.currentTrack = sceneName;
+      this.isPlaying = true;
+      return;
+    }
+
+    this.arcadeMusic.stop();
+
     // Если такой же трек уже играет - не перезапускаем
     if (this.currentTrack === trackBase && this.isPlaying) {
       return;
     }
-    
+
     // Находим доступный файл
     const trackPath = await this.resolveTrackPath(trackBase);
     if (!trackPath) {
       console.warn('No audio file found for:', trackBase);
       return;
     }
-    
+
     // Останавливаем текущий трек с fade out
     if (this.music && this.isPlaying) {
       this.fadeOut(() => {
@@ -98,7 +108,7 @@ class AudioManagerClass {
     if (this.resolvedTracks[trackBase]) {
       return this.resolvedTracks[trackBase];
     }
-    
+
     // Пробуем каждый формат
     for (const format of this.supportedFormats) {
       const path = `${trackBase}.${format}`;
@@ -113,7 +123,7 @@ class AudioManagerClass {
         // Файл не найден, пробуем следующий формат
       }
     }
-    
+
     return null;
   }
 
@@ -122,20 +132,20 @@ class AudioManagerClass {
    */
   startNewTrack(trackPath, trackBase) {
     if (!trackPath) return;
-    
+
     this.currentTrack = trackBase || trackPath;
-    
+
     // Создаём новый аудио элемент
     this.music = new Audio(trackPath);
     this.music.loop = true;
     this.music.volume = 0;
-    
+
     // Обработка ошибок загрузки
     this.music.onerror = () => {
       console.warn('Audio file not found:', trackPath);
       this.isPlaying = false;
     };
-    
+
     // Запуск с fade in
     const playPromise = this.music.play();
     if (playPromise !== undefined) {
@@ -168,7 +178,7 @@ class AudioManagerClass {
       document.removeEventListener('click', unlock);
       document.removeEventListener('touchstart', unlock);
     };
-    
+
     document.addEventListener('click', unlock);
     document.addEventListener('touchstart', unlock);
   }
@@ -178,10 +188,10 @@ class AudioManagerClass {
    */
   fadeIn(duration = 1000) {
     if (this.fadeInterval) clearInterval(this.fadeInterval);
-    
+
     const targetVolume = this.isMuted ? 0 : this.volume;
     const step = targetVolume / (duration / 50);
-    
+
     this.fadeInterval = setInterval(() => {
       if (this.music) {
         this.music.volume = Math.min(this.music.volume + step, targetVolume);
@@ -198,9 +208,9 @@ class AudioManagerClass {
    */
   fadeOut(callback, duration = 500) {
     if (this.fadeInterval) clearInterval(this.fadeInterval);
-    
+
     const step = (this.music?.volume || this.volume) / (duration / 50);
-    
+
     this.fadeInterval = setInterval(() => {
       if (this.music) {
         this.music.volume = Math.max(this.music.volume - step, 0);
@@ -220,14 +230,17 @@ class AudioManagerClass {
    * Остановить музыку
    */
   stop() {
-    this.fadeOut();
+    this.arcadeMusic.stop();
+    if (this.music) this.fadeOut();
     this.currentTrack = null;
+    this.isPlaying = false;
   }
 
   /**
    * Пауза
    */
   pause() {
+    this.arcadeMusic.pause();
     if (this.music && this.isPlaying) {
       this.music.pause();
     }
@@ -237,6 +250,7 @@ class AudioManagerClass {
    * Продолжить
    */
   resume() {
+    this.arcadeMusic.resume();
     if (this.music && !this.isMuted) {
       this.music.play().catch(() => {});
     }
@@ -247,6 +261,7 @@ class AudioManagerClass {
    */
   toggleMute() {
     this.isMuted = !this.isMuted;
+    this.arcadeMusic.setMuted(this.isMuted);
     if (this.music) {
       this.music.volume = this.isMuted ? 0 : this.volume;
     }
@@ -259,6 +274,7 @@ class AudioManagerClass {
    */
   setVolume(value) {
     this.volume = Math.max(0, Math.min(1, value));
+    this.arcadeMusic.setVolume(this.volume);
     if (this.music && !this.isMuted) {
       this.music.volume = this.volume;
     }

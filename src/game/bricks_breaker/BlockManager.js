@@ -66,25 +66,25 @@ export class BlockManager {
     
     // Если игроку тяжело (mercy < 0.7), увеличиваем шанс бонусных шаров
     // Если игроку легко (mercy > 1.3), уменьшаем бонусы и увеличиваем пустоту
-    let bonusBallChance = 0.13; // Базовый 13%
-    let emptyChance = 0.12;      // Базовый 12%
-    let blockChance = 0.60;      // Базовый 60%
+    let bonusBallChance = 0.045;
+    let emptyChance = 0.11;
+    let blockChance = 0.66;
     
     if (mercy < 0.5) {
       // Критически тяжело - много помощи
-      bonusBallChance = 0.25;
-      emptyChance = 0.20;
-      blockChance = 0.40;
+      bonusBallChance = 0.13;
+      emptyChance = 0.16;
+      blockChance = 0.48;
     } else if (mercy < 0.7) {
       // Тяжело - немного помощи
-      bonusBallChance = 0.20;
-      emptyChance = 0.15;
-      blockChance = 0.50;
+      bonusBallChance = 0.09;
+      emptyChance = 0.14;
+      blockChance = 0.56;
     } else if (mercy > 1.5) {
       // Слишком легко - усложняем
-      bonusBallChance = 0.08;
-      emptyChance = 0.08;
-      blockChance = 0.70;
+      bonusBallChance = 0.025;
+      emptyChance = 0.07;
+      blockChance = 0.74;
     }
     
     for (let i = 0; i < this.blocksPerRow; i++) {
@@ -98,25 +98,25 @@ export class BlockManager {
         // Обычный блок
         const hp = Math.max(1, this.turnNumber + Math.floor(Math.random() * 3) + 1 - hpReduction);
         row.push(new Block(x, y, this.blockWidth, this.blockHeight, hp));
-      } else if (rand < blockChance + 0.04) {
-        // Бомба (4%)
+      } else if (rand < blockChance + 0.02) {
+        // Бомба (2%)
         const hp = Math.max(1, this.turnNumber + Math.floor(Math.random() * 3) + 2 - hpReduction);
         row.push(new Bomb(x, y, this.blockWidth, this.blockHeight, hp));
-      } else if (rand < blockChance + 0.08) {
-        // Направленная бомба (4%)
+      } else if (rand < blockChance + 0.04) {
+        // Направленная бомба (2%)
         const dirs = ['H', 'V', 'X'];
         const dir = dirs[Math.floor(Math.random() * 3)];
         const hp = Math.max(1, this.turnNumber + Math.floor(Math.random() * 3) + 2 - hpReduction);
         row.push(new DirectionalBomb(x, y, this.blockWidth, this.blockHeight, hp, dir));
-      } else if (rand < blockChance + 0.12) {
-        // Лазер (4%)
+      } else if (rand < blockChance + 0.06) {
+        // Лазер (2%)
         const dirs = ['H', 'V', 'X'];
         const dir = dirs[Math.floor(Math.random() * 3)];
         this.specials.push(new Laser(x, y, this.blockWidth, this.blockHeight, dir, this.W, this.H));
-      } else if (rand < blockChance + 0.15) {
-        // Рандомайзер (3%)
+      } else if (rand < blockChance + 0.07) {
+        // Рандомайзер (1%)
         this.specials.push(new Randomizer(x, y, this.blockWidth, this.blockHeight));
-      } else if (rand < blockChance + 0.15 + bonusBallChance) {
+      } else if (rand < blockChance + 0.07 + bonusBallChance) {
         // Бонусный шар (адаптивный %)
         this.bonuses.push(new BonusBall(x + this.blockWidth / 2, y + this.blockHeight / 2));
       }
