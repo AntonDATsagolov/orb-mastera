@@ -23,9 +23,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - name: Test and build PWA
-        run: npm run release:check
+          node-version: 24
+      - name: Audit release files
+        run: npm run check
+      - name: Run test suite
+        run: npm test
+      - name: Build PWA
+        run: npm run build
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
